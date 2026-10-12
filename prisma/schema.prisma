@@ -1,0 +1,130 @@
+// Schéma Prisma — Gestion d'église (SaaS)
+// Docs : https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Énumérations
+// ---------------------------------------------------------------------------
+
+enum TypeCotisationEnum {
+  OBLIGATOIRE_BAREME
+  VOLONTAIRE_CAMPAGNE
+  QUETE_ANONYME
+}
+
+enum ModePaiement {
+  ESPECES
+  MOBILE_MONEY
+  VIREMENT
+  CHEQUE
+  CARTE_BANCAIRE
+}
+
+// ---------------------------------------------------------------------------
+// Modèles
+// ---------------------------------------------------------------------------
+
+model Membre {
+  id        String   @id @default(cuid())
+  nom       String
+  prenoms   String
+  telephone String   @unique
+  email     String?  @unique
+
+  adresse                String?
+  profession             String?
+  donneesEcclesiastiques Json? // ex : { "bapteme": true, "dateBapteme": "...", "fonctions": [...] }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  paiements   Paiement[]
+  aidesRecues AideDistribution[]
+}
+
+model Exercice {
+  id      String  @id @default(cuid())
+  annee   Int     @unique
+  libelle String
+  cloture Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  paliers   PaliereBareme[]
+  paiements Paiement[]
+}
+
+model TypeCotisation {
+  id          String            @id @default(cuid())
+  libelle     String
+  description String?
+  type        TypeCotisationEnum
+
+  paliers   PaliereBareme[]
+  paiements Paiement[]
+}
+
+model PaliereBareme {
+  id               String  @id @default(cuid())
+  typeCotisationId String
+  libelleClasse    String // ex : "Jeunes", "Adultes"
+  montant          Decimal @db.Decimal(12, 2)
+  exerciceId       String
+
+  typeCotisation TypeCotisation @relation(fields: [typeCotisationId], references: [id], onDelete: Cascade)
+  exercice       Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  // Un même palier (classe) n'existe qu'une fois par type de cotisation et par exercice
+  @@unique([typeCotisationId, libelleClasse, exerciceId])
+  @@index([exerciceId])
+}
+
+model Paiement {
+  id               String        @id @default(cuid())
+  montant          Decimal       @db.Decimal(12, 2)
+  datePaiement     DateTime      @default(now())
+  modePaiement     ModePaiement
+  membreId         String? // nullable : quêtes anonymes / dons sans identification
+  typeCotisationId String
+  exerciceId       String
+  commentaire      String?
+
+  membre         Membre?        @relation(fields: [membreId], references: [id], onDelete: SetNull)
+  typeCotisation TypeCotisation @relation(fields: [typeCotisationId], references: [id], onDelete: Restrict)
+  exercice       Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+
+  @@index([membreId])
+  @@index([typeCotisationId])
+  @@index([exerciceId])
+  @@index([datePaiement])
+}
+
+model AideDistribution {
+  id                   String   @id @default(cuid())
+  beneficiaireMembreId String? // nullable : bénéficiaire non membre ou anonyme
+  montantOuNature      String // montant chiffré OU description en nature (denrées, médicaments...)
+  motif                String
+  dateDistribution     DateTime @default(now())
+  notesConflictuelles  String? // historique des désaccords / réserves éventuels
+
+  beneficiaireMembre Membre? @relation(fields: [beneficiaireMembreId], references: [id], onDelete: SetNull)
+
+  @@index([beneficiaireMembreId])
+}
+
+model Culte {
+  id                String   @id @default(cuid())
+  date              DateTime @unique
+  intitule          String
+  totalQueteAnonyme Decimal  @default(0) @db.Decimal(12, 2)
+
+  @@index([date])
+}
