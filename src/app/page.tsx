@@ -23,6 +23,19 @@ type ModuleCard = {
 
 const MODULES: ModuleCard[] = [
   {
+    href: "/organisation",
+    title: "Organisation",
+    description:
+      "Gestion des départements (hommes, femmes, enfants) et des groupes d'activités (chorale, accueil, musique).",
+    icon: Users,
+    highlights: ["Départements", "Groupes", "Bureaux"],
+    // Bleu / indigo — organisation.
+    iconClasses:
+      "bg-blue-500/15 text-blue-600 ring-blue-500/25 group-hover:bg-blue-500/25 dark:bg-blue-400/15 dark:text-blue-300 dark:ring-blue-400/30 dark:group-hover:bg-blue-400/25",
+    accentClasses:
+      "hover:border-blue-500/60 hover:shadow-blue-500/15 dark:hover:border-blue-400/60 dark:hover:shadow-blue-400/10",
+  },
+  {
     href: "/membres",
     title: "Communauté",
     description:

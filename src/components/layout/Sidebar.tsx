@@ -30,6 +30,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    href: "/organisation/departements",
+    label: "Organisation",
+    description: "Départements & Groupes",
+    icon: Users,
+  },
+  {
     href: "/membres",
     label: "Communauté",
     description: "Membres & familles",
