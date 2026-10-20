@@ -1,15 +1,12 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import clsx from "clsx";
 import { BadgeCheck, Download, Hourglass, MinusCircle } from "lucide-react";
 
 import { telechargerRecuPDF, type DonneesRecu } from "@/lib/recu-pdf";
 import { formatMontant } from "@/lib/finance";
-import {
-  LIBELLES_STATUT_DONATEUR,
-  type LigneQuiADonne,
-  type VersementRecu,
-} from "@/types/rapport";
+import type { LigneQuiADonne, VersementRecu } from "@/types/rapport";
 
 type Props = {
   lignes: LigneQuiADonne[];
@@ -50,6 +47,15 @@ export default function TableauQuiADonne({
   classeLibelle,
   avecAttendu,
 }: Props) {
+  const [recherche, setRecherche] = useState("");
+
+  const lignesFiltrees = useMemo(() => {
+    const terme = recherche.trim().toLowerCase();
+    if (terme.length === 0) return lignes;
+    return lignes.filter((l) =>
+      `${l.prenoms} ${l.nom}`.toLowerCase().includes(terme),
+    );
+  }, [lignes, recherche]);
   if (lignes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-card-border bg-card/60 px-6 py-12 text-center">
@@ -78,7 +84,35 @@ export default function TableauQuiADonne({
     telechargerRecuPDF(donnees);
   };
 
+  /** Badge simplifié : vert « À jour » ou ambre « Retard / Partiel ». */
+  const badgeSimplifie = (ligne: LigneQuiADonne): { texte: string; classe: string } => {
+    if (ligne.statut === "SOLDE" || (ligne.totalVerse > 0 && ligne.resteAPayer !== null && ligne.resteAPayer <= 0)) {
+      return { texte: "À jour", classe: STYLES_STATUT.SOLDE };
+    }
+    if (ligne.statut === "CONTRIBUTEUR" && !avecAttendu) {
+      return { texte: "À jour", classe: STYLES_STATUT.SOLDE };
+    }
+    if (ligne.totalVerse > 0) {
+      return { texte: "Retard / Partiel", classe: STYLES_STATUT.PARTIEL };
+    }
+    return { texte: "Retard / Partiel", classe: STYLES_STATUT.PARTIEL };
+  };
+
   return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5 sm:max-w-xs">
+        <label htmlFor="tableau-recherche-membre" className="text-xs font-medium text-muted-foreground">
+          Rechercher (nom / prénom, temps réel)
+        </label>
+        <input
+          id="tableau-recherche-membre"
+          type="search"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Ex. Yao…"
+          className="h-9 rounded-lg border border-card-border bg-background px-3 text-sm text-foreground outline-none"
+        />
+      </div>
     <div className="overflow-x-auto rounded-2xl border border-card-border bg-card shadow-sm">
       <table className="min-w-full text-sm">
         <thead>
@@ -92,8 +126,9 @@ export default function TableauQuiADonne({
           </tr>
         </thead>
         <tbody className="divide-y divide-card-border">
-          {lignes.map((ligne) => {
-            const Icone = ICONES_STATUT[ligne.statut];
+          {lignesFiltrees.map((ligne) => {
+            const badge = badgeSimplifie(ligne);
+            const Icone = badge.texte === "À jour" ? ICONES_STATUT.SOLDE : ICONES_STATUT.PARTIEL;
             return (
               <tr key={ligne.membreId} className="transition-colors hover:bg-muted/40">
                 <td className="px-5 py-3">
@@ -126,11 +161,11 @@ export default function TableauQuiADonne({
                   <span
                     className={clsx(
                       "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
-                      STYLES_STATUT[ligne.statut],
+                      badge.classe,
                     )}
                   >
                     <Icone className="h-3.5 w-3.5" aria-hidden />
-                    {LIBELLES_STATUT_DONATEUR[ligne.statut]}
+                    {badge.texte}
                   </span>
                 </td>
                 <td className="px-5 py-3 text-right">
@@ -154,6 +189,7 @@ export default function TableauQuiADonne({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

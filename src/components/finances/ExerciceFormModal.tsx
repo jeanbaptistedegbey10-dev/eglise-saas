@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useActionState } from "react";
+import { useResetAuChangement } from "@/lib/use-reset-au-changement";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Check, CircleAlert, LoaderCircle, Plus, X } from "lucide-react";
 
-import { creerExercice } from "@/actions/finance";
+import { enregistrerExercice } from "@/actions/exercices";
+import { MOIS_LIBELLES } from "@/lib/mois";
 import { initialFinancesFormState } from "@/types/finance";
 
 const INPUT_BASE =
@@ -20,16 +22,19 @@ type Props = {
 export default function ExerciceFormModal({ triggerLabel, variant = "primary" }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [etat, formAction, enCours] = useActionState(creerExercice, initialFinancesFormState);
+  const [etat, formAction, enCours] = useActionState(
+    enregistrerExercice,
+    initialFinancesFormState,
+  );
 
   const anneeCourante = new Date().getFullYear();
 
+  useResetAuChangement(etat, () => {
+    if (etat.success) setOpen(false);
+  });
   useEffect(() => {
-    if (etat.success) {
-      setOpen(false);
-      router.refresh();
-    }
-  }, [etat, router]);
+    if (etat.success) router.refresh();
+  }, [etat]);
 
   // Fermeture par la touche Échap + verrouillage du défilement de fond.
   useEffect(() => {
@@ -157,6 +162,75 @@ export default function ExerciceFormModal({ triggerLabel, variant = "primary" }:
                     </p>
                   )}
                 </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="exercice-mois-debut" className="text-sm font-medium text-foreground">
+                      Mois de début<span className="ml-1 text-red-400">*</span>
+                    </label>
+                    <select
+                      id="exercice-mois-debut"
+                      name="moisDebut"
+                      defaultValue={1}
+                      aria-invalid={erreurDe("moisDebut") ? true : undefined}
+                      className={clsx(INPUT_BASE, "h-10")}
+                    >
+                      {MOIS_LIBELLES.map((libelle, index) => (
+                        <option key={libelle} value={index + 1}>
+                          {libelle} ({index + 1})
+                        </option>
+                      ))}
+                    </select>
+                    {erreurDe("moisDebut") && (
+                      <p className="text-xs text-red-400">{erreurDe("moisDebut")}</p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="exercice-mois-fin" className="text-sm font-medium text-foreground">
+                      Mois de fin<span className="ml-1 text-red-400">*</span>
+                    </label>
+                    <select
+                      id="exercice-mois-fin"
+                      name="moisFin"
+                      defaultValue={12}
+                      aria-invalid={erreurDe("moisFin") ? true : undefined}
+                      className={clsx(INPUT_BASE, "h-10")}
+                    >
+                      {MOIS_LIBELLES.map((libelle, index) => (
+                        <option key={libelle} value={index + 1}>
+                          {libelle} ({index + 1})
+                        </option>
+                      ))}
+                    </select>
+                    {erreurDe("moisFin") ? (
+                      <p className="text-xs text-red-400">{erreurDe("moisFin")}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Période comptable (ex. octobre → septembre).
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    name="reprendreSoldes"
+                    defaultChecked
+                    value="on"
+                    className="mt-1 h-4 w-4 rounded border-card-border accent-primary"
+                  />
+                  <span>
+                    <span className="font-medium text-foreground">
+                      Reprendre les soldes de clôture des caisses comme soldes initiaux
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      La continuité des soldes est conservée dans le modèle `Caisse`
+                      (solde initial aligné sur le solde de clôture).
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-2 border-t border-card-border bg-muted/40 px-6 py-4">

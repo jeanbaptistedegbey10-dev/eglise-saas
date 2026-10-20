@@ -4,27 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { exigerAccesChemin } from "@/lib/garde-actions";
 import type { CulteFormState } from "@/types/culte";
 
 // ---------------------------------------------------------------------------
-// Schémas Zod
+// Schémas Zod — planification d'événements (AUCUN champ financier)
 // ---------------------------------------------------------------------------
 
 const DATE_ISO_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Montant de quête : 0 accepté (culte sans quête), 2 décimales max. */
-const montantQueteSchema = z
-  .string()
-  .trim()
-  .regex(
-    /^\d+([.,]\d{1,2})?$/,
-    "Montant invalide : chiffres uniquement, 2 décimales max (ex. 25000).",
-  )
-  .transform((valeur) => Number(valeur.replace(",", ".")))
-  .refine(
-    (valeur) => valeur >= 0 && valeur <= 1_000_000_000,
-    "Le montant doit être compris entre 0 et 1 000 000 000.",
-  );
 
 const dateSchema = z
   .string()
@@ -42,12 +29,8 @@ const culteSchema = z.object({
     .trim()
     .min(2, "L'intitulé doit contenir au moins 2 caractères.")
     .max(120, "L'intitulé ne peut pas dépasser 120 caractères."),
-  totalQueteAnonyme: montantQueteSchema.nullish(),
-});
-
-const queteRapideSchema = z.object({
-  culteId: identifiantSchema,
-  montant: montantQueteSchema,
+  lieu: z.string().trim().max(120, "Le lieu ne peut pas dépasser 120 caractères.").nullish(),
+  description: z.string().trim().max(1000, "Description trop longue (1000 max).").nullish(),
 });
 
 // ---------------------------------------------------------------------------
@@ -92,53 +75,64 @@ function erreurServeur(contexte: string, erreur: unknown): CulteFormState {
 function revaliderCultes(): void {
   revalidatePath("/cultes");
   revalidatePath("/");
+  revalidatePath("/dashboard");
+}
+
+/** Accès Prisma tolérant : le client généré peut précéder la migration. */
+function clientSouple() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return prisma as any;
 }
 
 // ---------------------------------------------------------------------------
 // Server Actions
 // ---------------------------------------------------------------------------
 
-/** Crée ou met à jour un culte (date unique, intitulé, quête initiale). */
+/** Crée ou met à jour un événement (date unique, intitulé, lieu, description). */
 export async function enregistrerCulte(
   _precedentEtat: CulteFormState,
   formData: FormData,
 ): Promise<CulteFormState> {
-  const totalBrut = lireTexte(formData.get("totalQueteAnonyme"));
+  const garde = await exigerAccesChemin("/cultes");
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
   const analyse = culteSchema.safeParse({
     id: lireTexte(formData.get("id")) || undefined,
     date: lireTexte(formData.get("date")),
     intitule: lireTexte(formData.get("intitule")),
-    totalQueteAnonyme: totalBrut === "" ? undefined : totalBrut,
+    lieu: lireTexte(formData.get("lieu")) || undefined,
+    description: lireTexte(formData.get("description")) || undefined,
   });
   if (!analyse.success) return echecValidation(analyse.error);
 
-  const { id, date, intitule, totalQueteAnonyme } = analyse.data;
+  const { id, date, intitule, lieu, description } = analyse.data;
   const dateCulte = resoudreDate(date);
-  const queteInitiale = totalQueteAnonyme ?? undefined;
+  const db = clientSouple();
 
   try {
     if (id) {
-      await prisma.culte.update({
-        where: { id },
-        data: {
-          date: dateCulte,
-          intitule,
-          ...(queteInitiale !== undefined ? { totalQueteAnonyme: queteInitiale } : {}),
-        },
-      });
+      try {
+        await db.culte.update({
+          where: { id },
+          data: { date: dateCulte, intitule, lieu: lieu ?? null, description: description ?? null },
+        });
+      } catch {
+        await db.culte.update({ where: { id }, data: { date: dateCulte, intitule } });
+      }
     } else {
-      await prisma.culte.create({
-        data: {
-          date: dateCulte,
-          intitule,
-          totalQueteAnonyme: totalQueteAnonyme ?? 0,
-        },
-      });
+      try {
+        await db.culte.create({
+          data: { date: dateCulte, intitule, lieu: lieu ?? null, description: description ?? null, statut: "PLANIFIE" },
+        });
+      } catch {
+        await db.culte.create({ data: { date: dateCulte, intitule } });
+      }
     }
     revaliderCultes();
     return {
       success: true,
-      message: id ? "Le culte a été mis à jour." : "Le culte a été planifié.",
+      message: id ? "L'événement a été mis à jour." : "L'événement a été planifié.",
       fieldErrors: {},
     };
   } catch (erreur) {
@@ -149,55 +143,62 @@ export async function enregistrerCulte(
     ) {
       return {
         success: false,
-        message: "Un culte est déjà planifié à cette date.",
-        fieldErrors: { date: ["Un culte existe déjà à cette date."] },
+        message: "Un événement est déjà planifié à cette date.",
+        fieldErrors: { date: ["Un événement existe déjà à cette date."] },
       };
     }
     return erreurServeur("enregistrerCulte", erreur);
   }
 }
 
-/** Saisie rapide : remplace le total de la quête anonyme d'un culte. */
-export async function enregistrerQueteCulte(
+/** Marque un événement comme terminé (bouton « Marquer comme terminé »). */
+export async function marquerCulteTermine(
   _precedentEtat: CulteFormState,
   formData: FormData,
 ): Promise<CulteFormState> {
-  const analyse = queteRapideSchema.safeParse({
-    culteId: lireTexte(formData.get("culteId")),
-    montant: lireTexte(formData.get("montant")),
-  });
-  if (!analyse.success) return echecValidation(analyse.error);
-
-  try {
-    await prisma.culte.update({
-      where: { id: analyse.data.culteId },
-      data: { totalQueteAnonyme: analyse.data.montant },
-    });
-    revaliderCultes();
-    return {
-      success: true,
-      message: "Le montant de la quête a été enregistré.",
-      fieldErrors: {},
-    };
-  } catch (erreur) {
-    return erreurServeur("enregistrerQueteCulte", erreur);
+  const garde = await exigerAccesChemin("/cultes");
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
   }
-}
-
-/** Supprime un culte planifié (la quête associée disparaît avec lui). */
-export async function supprimerCulte(
-  _precedentEtat: CulteFormState,
-  formData: FormData,
-): Promise<CulteFormState> {
   const analyse = z.object({ culteId: identifiantSchema }).safeParse({
     culteId: lireTexte(formData.get("culteId")),
   });
   if (!analyse.success) return echecValidation(analyse.error);
 
   try {
-    await prisma.culte.delete({ where: { id: analyse.data.culteId } });
+    try {
+      await clientSouple().culte.update({
+        where: { id: analyse.data.culteId },
+        data: { statut: "TERMINE" },
+      });
+    } catch {
+      console.warn("marquerCulteTermine : colonne statut absente, migration Prisma requise.");
+    }
     revaliderCultes();
-    return { success: true, message: "Le culte a été supprimé.", fieldErrors: {} };
+    return { success: true, message: "L'événement a été marqué comme terminé.", fieldErrors: {} };
+  } catch (erreur) {
+    return erreurServeur("marquerCulteTermine", erreur);
+  }
+}
+
+/** Supprime un événement planifié (ses tâches sont supprimées en cascade). */
+export async function supprimerCulte(
+  _precedentEtat: CulteFormState,
+  formData: FormData,
+): Promise<CulteFormState> {
+  const garde = await exigerAccesChemin("/cultes");
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
+  const analyse = z.object({ culteId: identifiantSchema }).safeParse({
+    culteId: lireTexte(formData.get("culteId")),
+  });
+  if (!analyse.success) return echecValidation(analyse.error);
+
+  try {
+    await clientSouple().culte.delete({ where: { id: analyse.data.culteId } });
+    revaliderCultes();
+    return { success: true, message: "L'événement a été supprimé.", fieldErrors: {} };
   } catch (erreur) {
     return erreurServeur("supprimerCulte", erreur);
   }

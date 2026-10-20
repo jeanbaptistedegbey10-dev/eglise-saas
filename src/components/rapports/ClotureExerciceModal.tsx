@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useActionState } from "react";
+import { useEffect, useState, useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { AlertTriangle, CircleAlert, Lock, X } from "lucide-react";
+import { AlertTriangle, CircleAlert, Lock, LockOpen, X } from "lucide-react";
 
 import { cloturerExercice } from "@/actions/rapport";
+import { rouvrirExercice } from "@/actions/finance";
 import { initialClotureFormState } from "@/types/rapport";
 
 const INPUT_BASE =
@@ -62,7 +63,7 @@ export default function ClotureExerciceModal({
         className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white outline-none transition-colors hover:bg-red-500 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Lock className="h-4 w-4" aria-hidden />
-        Clôturer l&apos;exercice
+        🔒 Clôturer l&apos;exercice
       </button>
 
       {open && (
@@ -86,7 +87,7 @@ export default function ClotureExerciceModal({
                   Clôture définitive
                 </p>
                 <h2 id="cloture-modal-titre" className="text-lg font-semibold text-foreground">
-                  Clôturer {exerciceLibelle} ?
+                  🔒 Clôturer {exerciceLibelle} ?
                 </h2>
               </div>
               <button
@@ -223,5 +224,84 @@ export default function ClotureExerciceModal({
         </div>
       )}
     </>
+  );
+}
+
+type RouvrirProps = { exerciceId: string; exerciceLibelle: string };
+
+/** Badge ambre + bouton violet de réouverture avec confirmation. */
+export function RouvrirExerciceBloc({ exerciceId, exerciceLibelle }: RouvrirProps) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [enTransition, demarrerTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open ]);
+
+  const confirmer = () => {
+    setMessage(null);
+    demarrerTransition(async () => {
+      const resultat = await rouvrirExercice(exerciceId);
+      if (resultat.success) {
+        setOpen(false);
+        router.refresh();
+      } else {
+        setMessage(resultat.message || "Reouverture impossible.");
+      }
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
+        <Lock className="h-3.5 w-3.5" aria-hidden />
+        Exercice clôturé (Lecture seule)
+      </span>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white outline-none transition-colors hover:bg-violet-500 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <LockOpen className="h-4 w-4" aria-hidden />
+        Rouvrir l&apos;exercice
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <button type="button" tabIndex={-1} aria-label="Fermer" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-card-border bg-card shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-card-border px-6 py-4">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-violet-300">Reouverture</p>
+                <h2 className="text-lg font-semibold text-foreground">Rouvrir {exerciceLibelle} ?</h2>
+              </div>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+            <div className="flex flex-col gap-3 px-6 py-5 text-sm text-muted-foreground">
+              <p>La saisie sera de nouveau possible sur cet exercice.</p>
+              {message && <p role="alert" className="text-xs text-red-400">{message}</p>}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-card-border bg-muted/40 px-6 py-4">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Annuler</button>
+              <button type="button" onClick={confirmer} disabled={enTransition} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-60">
+                {enTransition ? "Reouverture…" : "Confirmer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

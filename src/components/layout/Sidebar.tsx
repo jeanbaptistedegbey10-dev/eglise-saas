@@ -1,39 +1,53 @@
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
   ClipboardCheck,
+  LayoutDashboard,
   type LucideIcon,
   HeartHandshake,
-  LayoutDashboard,
+  Network,
+  Settings,
   Settings2,
+  ShieldCheck,
   Users,
   Wallet,
 } from "lucide-react";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import BlocSessionSidebar from "@/components/layout/BlocSessionSidebar";
+import { useSession } from "next-auth/react";
+import { aAccesAuChemin } from "@/lib/permissions";
 
 type NavItem = {
   href: string;
   label: string;
   description: string;
   icon: LucideIcon;
+  /** Couleur de l'icône dans la sidebar (conservée quel que soit le thème). */
+  iconColor?: string;
+  /** Sous-liens affichés en retrait sous l'entrée principale. */
+  children?: { href: string; label: string }[];
 };
 
 const NAV_ITEMS: NavItem[] = [
   {
-    href: "/",
-    label: "Tableau de bord",
-    description: "Vue d'ensemble",
+    href: "/dashboard",
+    label: "Dashboard",
+    description: "Vue d'ensemble & métriques",
     icon: LayoutDashboard,
+    iconColor: "text-indigo-500",
   },
   {
-    href: "/organisation/departements",
+    href: "/organisation",
     label: "Organisation",
-    description: "Départements & Groupes",
-    icon: Users,
+    description: "Départements & groupes",
+    icon: Network,
   },
   {
     href: "/membres",
@@ -46,18 +60,31 @@ const NAV_ITEMS: NavItem[] = [
     label: "Finances",
     description: "Cotisations & quêtes",
     icon: Wallet,
+    iconColor: "text-emerald-500",
+    children: [
+      { href: "/finances", label: "Vue d'ensemble" },
+      { href: "/finances/cotisations?tab=types", label: "Cotisations & Barèmes" },
+      { href: "/finances/cotisations?tab=versements", label: "Versements" },
+      { href: "/finances/depenses", label: "Dépenses & Décaissements" },
+      { href: "/finances/caisses", label: "Gestion des Caisses" },
+      { href: "/finances/dons-libres", label: "Dons Libres & Offrandes" },
+      { href: "/finances/virements", label: "Virements & Compléments" },
+      { href: "/finances/cotisations?tab=rapports", label: "Rapports & Bilans" },
+    ],
   },
   {
     href: "/cultes",
     label: "Cultes & Événements",
     description: "Calendrier du culte",
     icon: CalendarDays,
+    iconColor: "text-amber-500",
   },
   {
     href: "/solidarite",
     label: "Solidarité",
     description: "Aides & suivi pastoral",
     icon: HeartHandshake,
+    iconColor: "text-rose-500",
   },
   {
     href: "/rapports",
@@ -65,46 +92,98 @@ const NAV_ITEMS: NavItem[] = [
     description: "Bilans & clôtures",
     icon: ClipboardCheck,
   },
+  {
+    href: "/administration/utilisateurs",
+    label: "Administration",
+    description: "Comptes, accès & journal d'audit",
+    icon: ShieldCheck,
+    iconColor: "text-violet-500",
+    children: [
+      { href: "/administration/utilisateurs", label: "Comptes & Accès" },
+      { href: "/administration/audit", label: "Journal d'Audit" },
+      { href: "/patrimoine", label: "Patrimoine & Logistique" },
+    ],
+  },
+  {
+    href: "/parametres",
+    label: "Paramètres",
+    description: "Configuration de l'église",
+    icon: Settings,
+  },
 ];
 
-function isCurrentPath(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+function cheminBase(href: string): string {
+  return href.split("?")[0] ?? href;
 }
 
-export default function Sidebar() {
+function estCheminCourant(pathname: string, href: string): boolean {
+  const base = cheminBase(href);
+  return base === "/" ? pathname === "/" : pathname.startsWith(base);
+}
+
+/** Navigation principale — lit `?tab=` (repli `?onglet=`) pour surligner le sous-lien.
+ *  Sections avec `children` = accordéons pliables (seule la section visitée est ouverte).
+ *  Filtre dynamiquement les liens selon `session.user.role` (RBAC : src/lib/permissions.ts). */
+function NavigationPrincipale({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const parametres = useSearchParams();
+  const ongletCourant = parametres.get("tab") ?? parametres.get("onglet");
+  const { data: session } = useSession();
+  const role = session?.user?.role ?? null;
+
+  // Sans rôle connu (session en cours de chargement) : afficher tout,
+  // le middleware bloque de toute façon les routes non autorisées.
+  const itemsVisibles = !role
+    ? NAV_ITEMS
+    : NAV_ITEMS.map((item) => ({
+        ...item,
+        children: item.children?.filter((child) => aAccesAuChemin(role, child.href)),
+      })).filter(
+        (item) =>
+          aAccesAuChemin(role, item.href) || (item.children?.length ?? 0) > 0,
+      );
+
+  // Accordéons : seule la section du chemin courant est ouverte par défaut.
+  const [sectionsOuvertes, setSectionsOuvertes] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const item of NAV_ITEMS) {
+      if (item.children?.length && estCheminCourant(pathname, item.href)) {
+        initial[item.href] = true;
+      }
+    }
+    return initial;
+  });
+
+  // À chaque navigation : déplie la section visitée, replie les autres.
+  useEffect(() => {
+    const suivantes: Record<string, boolean> = {};
+    for (const item of NAV_ITEMS) {
+      if (item.children?.length && estCheminCourant(pathname, item.href)) {
+        suivantes[item.href] = true;
+      }
+    }
+    setSectionsOuvertes(suivantes);
+  }, [pathname]);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-      <div className="flex items-center gap-3 border-b border-sidebar-border px-6 py-5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-          É
-        </span>
-        <span className="flex flex-col">
-          <span className="text-sm font-semibold text-foreground">
-            Église SaaS
-          </span>
-          <span className="text-xs text-muted-foreground">
-            Gestion communautaire
-          </span>
-        </span>
-      </div>
+    <nav className="flex-1 space-y-1 py-4" aria-label="Navigation principale">
+      {itemsVisibles.map(
+        ({ href, label, description, icon: Icon, iconColor, children }, index) => {
+        const estCourant = estCheminCourant(pathname, href);
+        const aDesEnfants = !!children && children.length > 0;
+        const estOuvert = aDesEnfants ? !!sectionsOuvertes[href] : false;
+        const ChevronIcon = estOuvert ? ChevronDown : ChevronRight;
 
-      <nav
-        className="flex flex-1 flex-col gap-1 p-3"
-        aria-label="Navigation principale"
-      >
-        {NAV_ITEMS.map(({ href, label, description, icon: Icon }) => {
-          const isCurrent = isCurrentPath(pathname, href);
-
+        if (!aDesEnfants) {
           return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={isCurrent ? "page" : undefined}
+            <div key={`${href}-${index}`} className="flex flex-col gap-0.5">
+              <Link
+                href={href}
+                onClick={onNavigate}
+                aria-current={estCourant ? "page" : undefined}
               className={clsx(
                 "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isCurrent
+                estCourant
                   ? "bg-sidebar-active-bg font-medium text-sidebar-active-fg"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
@@ -113,9 +192,9 @@ export default function Sidebar() {
                 aria-hidden
                 className={clsx(
                   "h-5 w-5 shrink-0 transition-colors",
-                  isCurrent
+                  estCourant
                     ? "text-accent"
-                    : "text-muted-foreground group-hover:text-foreground",
+                    : `${iconColor ?? "text-muted-foreground"} group-hover:text-foreground`,
                 )}
               />
               <span className="flex min-w-0 flex-col">
@@ -124,18 +203,143 @@ export default function Sidebar() {
                   {description}
                 </span>
               </span>
-            </Link>
+              </Link>
+            </div>
           );
-        })}
-      </nav>
+        }
 
-      <div className="border-t border-sidebar-border px-4 py-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+        const regionId = `sous-menu-${index}`;
+        return (
+          <div key={`${href}-${index}`} className="flex flex-col gap-0.5">
+            <div
+              className={clsx(
+                "group flex items-center gap-1 rounded-lg pr-1 transition-colors outline-none focus-within:ring-2 focus-within:ring-ring",
+                estCourant
+                  ? "bg-sidebar-active-bg font-medium text-sidebar-active-fg"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Link
+                href={href}
+                onClick={onNavigate}
+                aria-current={estCourant ? "page" : undefined}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm outline-none"
+              >
+                <Icon
+                  aria-hidden
+                  className={clsx(
+                    "h-5 w-5 shrink-0 transition-colors",
+                    estCourant
+                      ? "text-accent"
+                      : `${iconColor ?? "text-muted-foreground"} group-hover:text-foreground`,
+                  )}
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate">{label}</span>
+                  <span className="truncate text-xs font-normal text-muted-foreground">
+                    {description}
+                  </span>
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() =>
+                  setSectionsOuvertes((prev) => ({ ...prev, [href]: !prev[href] }))
+                }
+                aria-expanded={estOuvert}
+                aria-controls={regionId}
+                aria-label={estOuvert ? `Replier ${label}` : `Déplier ${label}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChevronIcon className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+
+            {estOuvert && (
+              <ul
+                id={regionId}
+                className="ml-6 flex flex-col gap-0.5 border-l border-card-border pl-2"
+              >
+                {children?.map((child, childIndex) => {
+                  const enfantBase = cheminBase(child.href);
+                  const ongletEnfant = new URLSearchParams(
+                    child.href.includes("?") ? (child.href.split("?")[1] ?? "") : "",
+                  ).get("tab");
+                  const memePage = pathname.startsWith(enfantBase);
+                  const estEnfantCourant = ongletEnfant
+                    ? memePage && ongletCourant === ongletEnfant
+                    : estCheminCourant(pathname, child.href);
+                  return (
+                    <li key={`${child.href}-${childIndex}`}>
+                      <Link
+                        href={child.href}
+                        onClick={onNavigate}
+                        aria-current={estEnfantCourant ? "page" : undefined}
+                        className={clsx(
+                          "block truncate rounded-md px-3 py-1.5 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          estEnfantCourant
+                            ? "bg-sidebar-active-bg font-medium text-sidebar-active-fg"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+export default function Sidebar({
+  className,
+  nomEglise = "",
+  onNavigate,
+}: {
+  className?: string;
+  nomEglise?: string;
+  onNavigate?: () => void;
+}) {
+  const nomAffiche = nomEglise.trim() || "Église SaaS";
+  const initiale = (nomAffiche.trim()[0] ?? "É").toUpperCase();
+
+  return (
+    <aside
+      className={clsx(
+        "flex h-full flex-col overflow-y-auto p-4 bg-card w-full md:h-screen md:w-64 md:flex-shrink-0 md:overflow-hidden md:border-r md:border-border md:p-0",
+        className ?? "hidden md:flex",
+      )}
+    >
+      {/* 1. Logo & Bouton Fermer */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border pb-4 md:border-sidebar-border md:px-6 md:py-5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
+          {initiale}
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-semibold text-foreground">{nomAffiche}</span>
+          <span className="text-xs text-muted-foreground">Gestion communautaire</span>
+        </span>
+      </div>
+
+      <Suspense fallback={null}>
+        <NavigationPrincipale onNavigate={onNavigate} />
+      </Suspense>
+
+      {/* 3. Bloc Profil & Déconnexion (dans le flux, tout en bas) */}
+      <div className="mt-auto pt-4 border-t border-border space-y-3 pb-8">
+        <BlocSessionSidebar />
+        <div className="mb-3 mt-4 flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-muted-foreground">Apparence</span>
           <ThemeToggle />
         </div>
         <Link
-          href="/finances/baremes"
+          href="/finances/cotisations?tab=types"
+          onClick={onNavigate}
           className="group flex items-center gap-2 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Settings2 className="h-3.5 w-3.5 text-accent" aria-hidden />

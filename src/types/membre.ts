@@ -31,13 +31,14 @@ export type MembreEditable = Pick<
   | "adresse"
   | "profession"
   | "donneesEcclesiastiques"
+  | "photoDataUrl"
 >;
 
-/** Fiche complète d'un membre avec son historique (paiements + aides). */
+/** Fiche communautaire d'un membre (état civil + parcours + rattachements). */
 export type FicheMembre = Prisma.MembreGetPayload<{
   include: {
-    paiements: { include: { typeCotisation: true; exercice: true } };
-    aidesRecues: true;
+    affectationsDepartement: { include: { departement: true } };
+    affectationsGroupe: { include: { groupe: true } };
   };
 }>;
 

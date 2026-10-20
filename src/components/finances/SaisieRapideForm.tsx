@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useActionState } from "react";
+import { useResetAuChangement } from "@/lib/use-reset-au-changement";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
@@ -83,12 +84,12 @@ export default function SaisieRapideForm({
   const decocherTous = () => setCoches(new Set());
 
   // Après un enregistrement réussi : grille rafraîchie et coches remises à zéro.
+  useResetAuChangement(etat, () => {
+    if (etat.success) setCoches(new Set());
+  });
   useEffect(() => {
-    if (etat.success) {
-      setCoches(new Set());
-      router.refresh();
-    }
-  }, [etat, router]);
+    if (etat.success) router.refresh();
+  }, [etat]);
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

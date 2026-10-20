@@ -14,10 +14,12 @@ datasource db {
 // Énumérations
 // ---------------------------------------------------------------------------
 
-enum TypeCotisationEnum {
+enum CategorieCotisationEnum {
   OBLIGATOIRE_BAREME
   VOLONTAIRE_CAMPAGNE
   QUETE_ANONYME
+
+  @@map("TypeCotisationEnum")
 }
 
 enum ModePaiement {
@@ -26,6 +28,92 @@ enum ModePaiement {
   VIREMENT
   CHEQUE
   CARTE_BANCAIRE
+}
+
+enum FrequenceCotisation {
+  HEBDOMADAIRE
+  MENSUEL
+  TRIMESTRIEL
+  ANNUEL
+  PONCTUEL
+}
+
+enum CibleCotisation {
+  TOUS
+  ADULTE
+  JEUNE
+  ENFANT
+  HOMME
+  FEMME
+}
+
+enum TypeCotisation {
+  RECURRENTE_CLASSE
+  PONCTUELLE_EVENEMENT
+  ANONYME_PROJET
+  QUETE_CULTE
+}
+
+enum RoleOrganisation {
+  RESPONSABLE
+  MEMBRE_BUREAU
+  MEMBRE
+}
+
+enum TypeDepense {
+  AFFECTEE_COTISATION
+  CAISSE_DIRECTE
+}
+
+enum CategorieCaisse {
+  GENERALE
+  SOLIDARITE
+  TRAVAUX_PROJETS
+}
+
+enum TypeMouvementCaisse {
+  DON_LIBRE
+  TRANSFERT_COTISATION
+  COMPLEMENT_COTISATION
+  VIREMENT_INTERNE
+  AJUSTEMENT
+}
+
+enum CategoriePatrimoine {
+  SONORISATION
+  INSTRUMENT
+  MOBILIER
+  INFORMATIQUE
+  IMMOBILIER
+  AUTRE
+}
+
+enum RoleUtilisateur {
+  ADMINISTRATEUR
+  PASTEUR
+  TRESORIER
+  SECRETARIAT
+  MEMBRE_CONSULTATION
+}
+
+enum EtatBien {
+  NEUF
+  BON_ETAT
+  USAGE
+  EN_PANNE
+  HORS_SERVICE
+}
+
+enum StatutEvenement {
+  PLANIFIE
+  TERMINE
+  ANNULE
+}
+
+enum StatutTache {
+  A_FAIRE
+  EN_COURS
+  CLOTUREE
 }
 
 // ---------------------------------------------------------------------------
@@ -39,37 +127,66 @@ model Membre {
   telephone String   @unique
   email     String?  @unique
 
+  /**
+   * Jeton unique de consultation publique du relevé annuel de cotisations.
+   * Route sans connexion : /releve/{tokenConsultation} — un lien personnel
+   * par membre, partagé via obtenirLienReleveMembre (jamais exposé ailleurs).
+   */
+  tokenConsultation String? @unique @default(uuid())
+
   adresse                String?
   profession             String?
   donneesEcclesiastiques Json? // ex : { "bapteme": true, "dateBapteme": "...", "fonctions": [...] }
+
+  /**
+   * Photo du membre en data URL (« data:image/jpeg;base64, … ») issue de
+   * l'upload du formulaire de fiche. Redimensionnée côté client (côté serveur
+   * la valeur est re-validée : format + taille).
+   */
+  photoDataUrl           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   paiements   Paiement[]
   aidesRecues AideDistribution[]
+  versementsCotisation VersementCotisation[]
+  departementsDiriges Departement[] @relation("DepartementResponsable")
+  affectationsDepartement DepartementMembre[]
+  groupesDiriges Groupe[] @relation("GroupeResponsable")
+  affectationsGroupe GroupeMembre[]
+
+  depensesRecues Depense[]
+  mouvementsCaisse MouvementCaisse[]
+  tachesAssignees TacheEvenement[] @relation("TacheResponsable")
 }
 
 model Exercice {
   id      String  @id @default(cuid())
   annee   Int     @unique
   libelle String
+  moisDebut Int @default(1)
+  moisFin Int @default(12)
   cloture Boolean @default(false)
 
   createdAt DateTime @default(now())
 
   paliers   PaliereBareme[]
   paiements Paiement[]
+  cotisations Cotisation[]
+  depenses Depense[]
 }
 
-model TypeCotisation {
-  id          String            @id @default(cuid())
+model CategorieCotisation {
+  id          String                   @id @default(cuid())
   libelle     String
   description String?
-  type        TypeCotisationEnum
+  type        CategorieCotisationEnum
 
   paliers   PaliereBareme[]
   paiements Paiement[]
+
+  @@map("categorieCotisation")
 }
 
 model PaliereBareme {
@@ -79,7 +196,7 @@ model PaliereBareme {
   montant          Decimal @db.Decimal(12, 2)
   exerciceId       String
 
-  typeCotisation TypeCotisation @relation(fields: [typeCotisationId], references: [id], onDelete: Cascade)
+  typeCotisation CategorieCotisation @relation(fields: [typeCotisationId], references: [id], onDelete: Cascade)
   exercice       Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
 
   // Un même palier (classe) n'existe qu'une fois par type de cotisation et par exercice
@@ -97,8 +214,8 @@ model Paiement {
   exerciceId       String
   commentaire      String?
 
-  membre         Membre?        @relation(fields: [membreId], references: [id], onDelete: SetNull)
-  typeCotisation TypeCotisation @relation(fields: [typeCotisationId], references: [id], onDelete: Restrict)
+  membre         Membre?              @relation(fields: [membreId], references: [id], onDelete: SetNull)
+  typeCotisation CategorieCotisation @relation(fields: [typeCotisationId], references: [id], onDelete: Restrict)
   exercice       Exercice       @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
 
   @@index([membreId])
@@ -121,10 +238,314 @@ model AideDistribution {
 }
 
 model Culte {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   date              DateTime @unique
   intitule          String
+  lieu              String?
+  description       String?
+  statut            StatutEvenement @default(PLANIFIE)
   totalQueteAnonyme Decimal  @default(0) @db.Decimal(12, 2)
 
+  taches TacheEvenement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
   @@index([date])
+  @@index([statut])
+}
+
+model TacheEvenement {
+  id                  String       @id @default(cuid())
+  culteId             String
+  titre               String
+  description         String?
+  statut              StatutTache  @default(A_FAIRE)
+  responsableMembreId String?
+
+  culte       Culte  @relation(fields: [culteId], references: [id], onDelete: Cascade)
+  responsable Membre? @relation("TacheResponsable", fields: [responsableMembreId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([culteId])
+  @@index([statut])
+  @@index([responsableMembreId])
+}
+
+model Cotisation {
+  id               String             @id @default(cuid())
+  exerciceId       String
+  nom              String
+  description      String?
+  frequence        FrequenceCotisation @default(MENSUEL)
+  type             TypeCotisation     @default(RECURRENTE_CLASSE)
+  dateDebut        DateTime?
+  dateFin          DateTime?
+  estCloture       Boolean            @default(false)
+  montantPlancher  Decimal?           @db.Decimal(12, 2)
+  autoriserSurplus Boolean            @default(false)
+  montantCible     Decimal?           @db.Decimal(12, 2)
+  departementId  String?
+  groupeId       String?
+
+  exercice   Exercice            @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+  departement Departement? @relation(fields: [departementId], references: [id], onDelete: SetNull)
+  groupe      Groupe?      @relation(fields: [groupeId], references: [id], onDelete: SetNull)
+  baremes    BaremeCotisation[]
+  versements VersementCotisation[]
+  depenses   Depense[]
+  mouvements MouvementCaisse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([exerciceId, nom])
+  @@index([exerciceId])
+}
+
+model BaremeCotisation {
+  id           String          @id @default(cuid())
+  cotisationId String
+  cible        CibleCotisation
+  montant      Decimal         @db.Decimal(12, 2)
+
+  cotisation Cotisation @relation(fields: [cotisationId], references: [id], onDelete: Cascade)
+
+  @@unique([cotisationId, cible])
+  @@index([cotisationId])
+}
+
+model VersementCotisation {
+  id                String   @id @default(cuid())
+  cotisationId      String
+  membreId          String?
+  montant           Decimal  @db.Decimal(12, 2)
+  montantBase       Decimal  @default(0) @db.Decimal(12, 2)
+  surplusVolontaire Decimal  @default(0) @db.Decimal(12, 2)
+  moisCoches        String[] @default([])
+  estAnonyme        Boolean  @default(false)
+  dateEffective     DateTime @default(now())
+  dateVersement     DateTime @default(now())
+  modePaiement      ModePaiement @default(ESPECES)
+  commentaire       String?
+
+  cotisation Cotisation @relation(fields: [cotisationId], references: [id], onDelete: Cascade)
+  membre     Membre?    @relation(fields: [membreId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([cotisationId])
+  @@index([membreId])
+  @@index([dateVersement])
+  @@index([dateEffective])
+}
+
+model Depense {
+  id                   String           @id @default(cuid())
+  libelle              String
+  description          String?
+  montant              Decimal
+  dateDepense          DateTime         @default(now())
+  modePaiement         ModePaiement     @default(ESPECES)
+  numeroPiece          String?          // Facture, reçu, référence virement/MoMo
+
+  type                 TypeDepense      @default(CAISSE_DIRECTE)
+  caisseSource         CategorieCaisse  @default(GENERALE)
+  caisseId             String?
+  caisse               Caisse?          @relation(fields: [caisseId], references: [id], onDelete: SetNull)
+
+  cotisationId         String?
+  cotisation           Cotisation?      @relation(fields: [cotisationId], references: [id], onDelete: SetNull)
+
+  beneficiaireMembreId String?
+  beneficiaireMembre   Membre?          @relation(fields: [beneficiaireMembreId], references: [id], onDelete: SetNull)
+  beneficiaireTiers    String?          // Si bénéficiaire externe (bailleur, artisan, etc.)
+
+  exerciceId           String
+  exercice             Exercice         @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([caisseId])
+  @@index([cotisationId])
+  @@index([exerciceId])
+}
+
+model Caisse {
+  id           String   @id @default(cuid())
+  nom          String
+  code         String?  @unique
+  description  String?
+  soldeInitial Decimal  @default(0) @db.Decimal(12, 2)
+  soldeActuel  Decimal  @default(0) @db.Decimal(12, 2)
+  estParDefaut Boolean  @default(false)
+
+  mouvements MouvementCaisse[]
+  depenses   Depense[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MouvementCaisse {
+  id            String              @id @default(cuid())
+  caisseId      String
+  caisse        Caisse              @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+
+  type          TypeMouvementCaisse
+  montant       Decimal             @db.Decimal(12, 2)
+  sens          String              // "ENTREE" ou "SORTIE"
+  dateMouvement DateTime            @default(now())
+  motif         String
+
+  cotisationId  String?
+  cotisation    Cotisation?         @relation(fields: [cotisationId], references: [id], onDelete: SetNull)
+
+  membreId      String?
+  membre        Membre?             @relation(fields: [membreId], references: [id], onDelete: SetNull)
+  donateurTiers String?
+
+  modePaiement  ModePaiement        @default(ESPECES)
+  numeroPiece   String?
+
+  createdAt     DateTime            @default(now())
+
+  @@index([caisseId])
+  @@index([cotisationId])
+  @@index([membreId])
+  @@index([dateMouvement])
+}
+
+model Departement {
+  id           String  @id @default(cuid())
+  nom          String  @unique
+  description  String?
+  aUnBureau    Boolean @default(false)
+  responsableId String?
+
+  responsable Membre?             @relation("DepartementResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
+  membres     DepartementMembre[]
+  groupes     Groupe[]
+  cotisations Cotisation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([responsableId])
+}
+
+model DepartementMembre {
+  id            String            @id @default(cuid())
+  departementId String
+  membreId      String
+  role          RoleOrganisation  @default(MEMBRE)
+
+  createdAt DateTime @default(now())
+
+  departement Departement @relation(fields: [departementId], references: [id], onDelete: Cascade)
+  membre      Membre      @relation(fields: [membreId], references: [id], onDelete: Cascade)
+
+  @@unique([departementId, membreId])
+  @@index([membreId])
+}
+
+model Groupe {
+  id            String  @id @default(cuid())
+  nom           String  @unique
+  description   String?
+  aUnBureau     Boolean @default(false)
+  estSousGroupe Boolean @default(false)
+  parentId      String?
+  departementId String?
+  responsableId String?
+
+  responsable Membre?      @relation("GroupeResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
+  parent      Groupe?      @relation("GroupeParent", fields: [parentId], references: [id], onDelete: SetNull)
+  sousGroupes Groupe[]     @relation("GroupeParent")
+  departement Departement? @relation(fields: [departementId], references: [id], onDelete: SetNull)
+  membres     GroupeMembre[]
+  cotisations Cotisation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([departementId])
+  @@index([responsableId])
+}
+
+model GroupeMembre {
+  id       String           @id @default(cuid())
+  groupeId String
+  membreId String
+  role     RoleOrganisation @default(MEMBRE)
+
+  createdAt DateTime @default(now())
+
+  groupe Groupe @relation(fields: [groupeId], references: [id], onDelete: Cascade)
+  membre Membre @relation(fields: [membreId], references: [id], onDelete: Cascade)
+
+  @@unique([groupeId, membreId])
+  @@index([membreId])
+}
+
+model JournalAudit {
+  id        String   @id @default(cuid())
+  action    String
+  entite    String
+  entiteId  String?
+  auteurNom String   @default("Responsable")
+  details   String
+  createdAt DateTime @default(now())
+
+  @@index([entite])
+  @@index([createdAt])
+}
+
+model Utilisateur {
+  id                   String          @id @default(cuid())
+  nomComplet           String
+  email                String          @unique
+  telephone            String?
+
+  role                 RoleUtilisateur @default(MEMBRE_CONSULTATION)
+
+  /** Hachage scrypt « scrypt$sel$empreinte » — le mot de passe en clair n'est jamais stocké. */
+  motDePasseHash       String
+  /** Vrai tant que le mot de passe temporaire attribué à la création n'a pas été remplacé. */
+  motDePasseTemporaire Boolean         @default(true)
+  /** Compte actif = accès autorisé ; faux = accès suspendu (réactivable). */
+  actif                Boolean         @default(true)
+
+  derniereConnexion    DateTime?
+  /** Code OTP à 6 chiffres pour l'authentification à deux facteurs (2FA e-mail). */
+  codeOtp              String?
+  /** Fin de validité du code OTP (10 minutes après génération). */
+  expirationOtp        DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([role])
+  @@index([actif])
+}
+
+model BienPatrimoine {
+  id             String             @id @default(cuid())
+  designation    String
+  categorie      CategoriePatrimoine @default(MOBILIER)
+  quantite       Int                @default(1)
+  etat           EtatBien           @default(BON_ETAT)
+  valeurEstimee  Float?
+  lieuStockage   String?
+  dateAcquisition DateTime?
+  remarques      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([categorie])
+  @@index([etat])
+  @@index([createdAt])
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { exigerTresorierOuAdmin } from "@/lib/garde-actions";
 import type { ClotureFormState, StatistiquesExercice } from "@/types/rapport";
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,7 @@ export async function extraireStatistiquesExercice(
       where: filtre,
       select: { montant: true, membreId: true },
     }),
-    prisma.typeCotisation.findMany({
+    prisma.categorieCotisation.findMany({
       orderBy: { libelle: "asc" },
       select: {
         id: true,
@@ -114,6 +115,8 @@ export async function extraireStatistiquesExercice(
       id: exercice.id,
       annee: exercice.annee,
       libelle: exercice.libelle,
+      moisDebut: exercice.moisDebut,
+      moisFin: exercice.moisFin,
       cloture: exercice.cloture,
     },
     totalGeneral,
@@ -145,6 +148,15 @@ export async function cloturerExercice(
   _precedentEtat: ClotureFormState,
   formData: FormData,
 ): Promise<ClotureFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return {
+      success: false,
+      message: garde.message,
+      fieldErrors: { _form: [garde.message] },
+      exerciceSuivantId: null,
+    };
+  }
   const analyse = clotureSchema.safeParse({
     exerciceId: lireTexte(formData.get("exerciceId")),
     confirmation: lireTexte(formData.get("confirmation")),

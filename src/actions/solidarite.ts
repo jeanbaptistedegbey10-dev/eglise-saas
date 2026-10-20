@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { exigerAccesChemin } from "@/lib/garde-actions";
 import type { SolidariteFormState } from "@/types/solidarite";
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,10 @@ export async function enregistrerAide(
   _precedentEtat: SolidariteFormState,
   formData: FormData,
 ): Promise<SolidariteFormState> {
+  const garde = await exigerAccesChemin("/solidarite");
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
   const beneficiaireBrut = lireTexte(formData.get("beneficiaireMembreId"));
   const dateBrute = lireTexte(formData.get("dateDistribution"));
   const analyse = aideSchema.safeParse({
@@ -171,6 +176,10 @@ export async function supprimerAide(
   _precedentEtat: SolidariteFormState,
   formData: FormData,
 ): Promise<SolidariteFormState> {
+  const garde = await exigerAccesChemin("/solidarite");
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
   const analyse = z.object({ aideId: identifiantSchema }).safeParse({
     aideId: lireTexte(formData.get("aideId")),
   });

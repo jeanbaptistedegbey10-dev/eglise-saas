@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { exigerTresorierOuAdmin } from "@/lib/garde-actions";
 import { VALEURS_MODE_PAIEMENT, VALEURS_TYPE_COTISATION } from "@/lib/finance";
 import type {
   FinancesFormState,
@@ -45,20 +46,6 @@ const typeCotisationSchema = z.enum(VALEURS_TYPE_COTISATION, {
 });
 
 const identifiantSchema = z.string().trim().min(1, "Identifiant manquant.");
-
-/** Exercice : année plausible et libellé court. */
-const exerciceSchema = z.object({
-  annee: z.coerce
-    .number({ message: "L'année doit être un nombre." })
-    .int("L'année doit être un entier.")
-    .min(2000, "L'année doit être supérieure ou égale à 2000.")
-    .max(2100, "L'année doit être inférieure ou égale à 2100."),
-  libelle: z
-    .string()
-    .trim()
-    .min(2, "Le libellé doit contenir au moins 2 caractères.")
-    .max(80, "Le libellé ne peut pas dépasser 80 caractères."),
-});
 
 const typeCotisationEditionSchema = z.object({
   id: identifiantSchema.optional(),
@@ -177,48 +164,16 @@ function erreurServeur(contexte: string, erreur: unknown): FinancesFormState {
 // ---------------------------------------------------------------------------
 
 /**
- * Crée un exercice comptable (ex. « Exercice 2026 »). Un exercice unique par
- * année (contrainte `@unique` du modèle `Exercice`).
- */
-export async function creerExercice(
-  _precedentEtat: FinancesFormState,
-  formData: FormData,
-): Promise<FinancesFormState> {
-  const analyse = exerciceSchema.safeParse({
-    annee: lireTexte(formData.get("annee")),
-    libelle: lireTexte(formData.get("libelle")),
-  });
-  if (!analyse.success) return echecValidation(analyse.error);
-
-  try {
-    await prisma.exercice.create({ data: analyse.data });
-    revalidatePath("/finances");
-    revalidatePath("/finances/baremes");
-    revalidatePath("/finances/saisie-rapide");
-    return {
-      success: true,
-      message: `L'exercice ${analyse.data.annee} a été créé.`,
-      fieldErrors: {},
-    };
-  } catch (erreur) {
-    if (estConflitUnicite(erreur)) {
-      return {
-        success: false,
-        message: `Un exercice existe déjà pour l'année ${analyse.data.annee}.`,
-        fieldErrors: { annee: ["Cette année est déjà utilisée."] },
-      };
-    }
-    return erreurServeur("creerExercice", erreur);
-  }
-}
-
-/**
  * Crée ou met à jour un type de cotisation (obligatoire, volontaire ou quête).
  */
 export async function enregistrerTypeCotisation(
   _precedentEtat: FinancesFormState,
   formData: FormData,
 ): Promise<FinancesFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
   const analyse = typeCotisationEditionSchema.safeParse({
     id: lireTexte(formData.get("id")) || undefined,
     libelle: lireTexte(formData.get("libelle")),
@@ -231,9 +186,9 @@ export async function enregistrerTypeCotisation(
 
   try {
     if (id) {
-      await prisma.typeCotisation.update({ where: { id }, data: donnees });
+      await prisma.categorieCotisation.update({ where: { id }, data: donnees });
     } else {
-      await prisma.typeCotisation.create({ data: donnees });
+      await prisma.categorieCotisation.create({ data: donnees });
     }
 
     revalidatePath("/finances");
@@ -267,6 +222,10 @@ export async function enregistrerBaremes(
   _precedentEtat: FinancesFormState,
   formData: FormData,
 ): Promise<FinancesFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
   // Les champs dynamiques arrivent en tableaux parallèles (lignes ajoutées
   // côté client via le bouton « Ajouter une classe »).
   const ids = formData.getAll("palierId");
@@ -307,7 +266,7 @@ export async function enregistrerBaremes(
   try {
     const [exercice, typeCotisation] = await Promise.all([
       prisma.exercice.findUnique({ where: { id: exerciceId } }),
-      prisma.typeCotisation.findUnique({ where: { id: typeCotisationId } }),
+      prisma.categorieCotisation.findUnique({ where: { id: typeCotisationId } }),
     ]);
 
     if (!exercice) {
@@ -416,6 +375,10 @@ export async function enregistrerPaiementAnonyme(
   _precedentEtat: FinancesFormState,
   formData: FormData,
 ): Promise<FinancesFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
   const analyse = paiementAnonymeSchema.safeParse({
     exerciceId: lireTexte(formData.get("exerciceId")),
     typeCotisationId: lireTexte(formData.get("typeCotisationId")),
@@ -431,7 +394,7 @@ export async function enregistrerPaiementAnonyme(
   try {
     const [exercice, typeCotisation] = await Promise.all([
       prisma.exercice.findUnique({ where: { id: donnees.exerciceId } }),
-      prisma.typeCotisation.findUnique({
+      prisma.categorieCotisation.findUnique({
         where: { id: donnees.typeCotisationId },
       }),
     ]);
@@ -500,6 +463,16 @@ export async function enregistrerPaiementsRapides(
   _precedentEtat: PaiementsRapidesFormState,
   formData: FormData,
 ): Promise<PaiementsRapidesFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return {
+      success: false,
+      message: garde.message,
+      fieldErrors: { _form: [garde.message] },
+      nombreEnregistres: 0,
+      nombreDejaVerses: 0,
+    };
+  }
   const analyse = paiementsRapidesSchema.safeParse({
     exerciceId: lireTexte(formData.get("exerciceId")),
     typeCotisationId: lireTexte(formData.get("typeCotisationId")),
@@ -526,7 +499,7 @@ export async function enregistrerPaiementsRapides(
   try {
     const [exercice, typeCotisation, palier] = await Promise.all([
       prisma.exercice.findUnique({ where: { id: donnees.exerciceId } }),
-      prisma.typeCotisation.findUnique({ where: { id: donnees.typeCotisationId } }),
+      prisma.categorieCotisation.findUnique({ where: { id: donnees.typeCotisationId } }),
       prisma.paliereBareme.findUnique({ where: { id: donnees.palierId } }),
     ]);
 
@@ -675,5 +648,93 @@ export async function enregistrerPaiementsRapides(
   } catch (erreur) {
     const etat = erreurServeur("enregistrerPaiementsRapides", erreur);
     return { ...etat, nombreEnregistres: 0, nombreDejaVerses: 0 };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cycle de vie de l'exercice — clôture / réouverture simple
+// ---------------------------------------------------------------------------
+
+/**
+ * Clôture simple d'un exercice : passe `cloture: true`.
+ * Sécurisée : vérifie l'existence avant mise à jour.
+ */
+export async function cloturerExercice(
+  exerciceId: string,
+): Promise<FinancesFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
+  const id = exerciceId?.trim();
+  if (!id) {
+    return {
+      success: false,
+      message: "Identifiant d'exercice manquant.",
+      fieldErrors: { _form: ["Identifiant manquant."] },
+    };
+  }
+  try {
+    const exercice = await prisma.exercice.findUnique({ where: { id } });
+    if (!exercice) {
+      return {
+        success: false,
+        message: "Exercice introuvable.",
+        fieldErrors: { _form: ["Exercice introuvable."] },
+      };
+    }
+    await prisma.exercice.update({ where: { id }, data: { cloture: true } });
+    revalidatePath("/rapports");
+    revalidatePath("/finances");
+    revalidatePath("/finances/cotisations");
+    return {
+      success: true,
+      message: `L'exercice ${exercice.libelle} est clôturé (lecture seule).`,
+      fieldErrors: {},
+    };
+  } catch (erreur) {
+    return erreurServeur("cloturerExercice", erreur);
+  }
+}
+
+/**
+ * Réouverture d'un exercice clôturé : passe `cloture: false`
+ * pour déverrouiller la saisie.
+ */
+export async function rouvrirExercice(
+  exerciceId: string,
+): Promise<FinancesFormState> {
+  const garde = await exigerTresorierOuAdmin();
+  if (!garde.ok) {
+    return { success: false, message: garde.message, fieldErrors: { _form: [garde.message] } };
+  }
+  const id = exerciceId?.trim();
+  if (!id) {
+    return {
+      success: false,
+      message: "Identifiant d'exercice manquant.",
+      fieldErrors: { _form: ["Identifiant manquant."] },
+    };
+  }
+  try {
+    const exercice = await prisma.exercice.findUnique({ where: { id } });
+    if (!exercice) {
+      return {
+        success: false,
+        message: "Exercice introuvable.",
+        fieldErrors: { _form: ["Exercice introuvable."] },
+      };
+    }
+    await prisma.exercice.update({ where: { id }, data: { cloture: false } });
+    revalidatePath("/rapports");
+    revalidatePath("/finances");
+    revalidatePath("/finances/cotisations");
+    return {
+      success: true,
+      message: `L'exercice ${exercice.libelle} est rouvert : la saisie est à nouveau possible.`,
+      fieldErrors: {},
+    };
+  } catch (erreur) {
+    return erreurServeur("rouvrirExercice", erreur);
   }
 }

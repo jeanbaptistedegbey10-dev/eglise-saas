@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { CircleAlert, Eye, Users } from "lucide-react";
-
+import { CircleAlert, Users } from "lucide-react";
+import ListeMembres, { type MembreFiltreItem } from "@/components/membres/ListeMembres";
 import MembreFormModal from "@/components/membres/MembreFormModal";
+import ExportCSVBouton from "@/components/commun/ExportCSVBouton";
+import { determinerClasseAge } from "@/lib/cotisation";
+import { parseDonneesEcclesiastiques } from "@/lib/membre";
 import { prisma } from "@/lib/prisma";
-import type { Membre } from "@/generated/prisma/client";
 
 export const metadata: Metadata = {
   title: "Membres",
@@ -16,18 +17,72 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function MembresPage() {
-  let membres: Membre[] = [];
+  let items: MembreFiltreItem[] = [];
   let erreurBase: string | null = null;
 
   try {
-    membres = await prisma.membre.findMany({
+    const lignes = await prisma.membre.findMany({
       orderBy: [{ nom: "asc" }, { prenoms: "asc" }],
+      include: {
+        affectationsDepartement: { include: { departement: { select: { nom: true } } } },
+        affectationsGroupe: { include: { groupe: { select: { nom: true } } } },
+      },
+    });
+    items = lignes.map((m) => {
+      const profil = parseDonneesEcclesiastiques(m.donneesEcclesiastiques);
+      return {
+        id: m.id,
+        nom: m.nom,
+        prenoms: m.prenoms,
+        telephone: m.telephone,
+        email: m.email,
+        profession: m.profession,
+        adresse: m.adresse,
+        lieuTravail: profil.lieuTravail ?? null,
+        sexe: profil.sexe ?? null,
+        statut: profil.statutMembre ?? null,
+        // Tranche de cotisation (Adulte / Jeune / Enfant) — aligne le filtre
+        // du répertoire sur la ventilation des cotisations.
+        classeAge: determinerClasseAge(profil),
+        departements: m.affectationsDepartement.map((a) => a.departement.nom),
+        groupes: m.affectationsGroupe.map((a) => a.groupe.nom),
+        photoDataUrl: m.photoDataUrl,
+      };
     });
   } catch (error) {
     console.error("Erreur lors du chargement des membres :", error);
     erreurBase =
       "Impossible de joindre la base de données. Vérifiez la variable DATABASE_URL puis réessayez.";
   }
+
+  // Données de l'export CSV du répertoire (colonnes en français, valeurs
+  // plates — les listes sont jointes par « ; »).
+  const colonnesCSV = [
+    "Nom",
+    "Prénoms",
+    "Téléphone",
+    "Email",
+    "Profession",
+    "Adresse",
+    "Sexe",
+    "Statut",
+    "Tranche de cotisation",
+    "Départements",
+    "Groupes",
+  ];
+  const lignesCSV = items.map((m) => [
+    m.nom,
+    m.prenoms,
+    m.telephone,
+    m.email ?? "",
+    m.profession ?? "",
+    m.adresse ?? "",
+    m.sexe ?? "",
+    m.statut ?? "",
+    m.classeAge ?? "",
+    m.departements.join("; "),
+    m.groupes.join("; "),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
@@ -45,8 +100,11 @@ export default async function MembresPage() {
         <div className="flex items-center gap-3">
           {!erreurBase && (
             <span className="rounded-full border border-card-border bg-muted px-3 py-1 text-xs text-muted-foreground">
-              {membres.length} membre{membres.length > 1 ? "s" : ""}
+              {items.length} membre{items.length > 1 ? "s" : ""}
             </span>
+          )}
+          {!erreurBase && (
+            <ExportCSVBouton base="membres" colonnes={colonnesCSV} lignes={lignesCSV} />
           )}
           <MembreFormModal triggerLabel="Nouveau membre" />
         </div>
@@ -60,7 +118,7 @@ export default async function MembresPage() {
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span>{erreurBase}</span>
         </div>
-      ) : membres.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-card-border bg-card/60 px-6 py-16 text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
             <Users className="h-7 w-7 text-muted-foreground" aria-hidden />
@@ -73,43 +131,7 @@ export default async function MembresPage() {
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-card-border bg-card shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-5 py-3 font-medium">Nom</th>
-                <th className="px-5 py-3 font-medium">Prénoms</th>
-                <th className="px-5 py-3 font-medium">Téléphone</th>
-                <th className="px-5 py-3 font-medium">Profession</th>
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-card-border">
-              {membres.map((membre) => (
-                <tr key={membre.id} className="transition-colors hover:bg-muted/40">
-                  <td className="px-5 py-3 font-medium text-foreground">{membre.nom}</td>
-                  <td className="px-5 py-3 text-foreground">{membre.prenoms}</td>
-                  <td className="whitespace-nowrap px-5 py-3 tabular-nums text-muted-foreground">
-                    {membre.telephone}
-                  </td>
-                  <td className="px-5 py-3 text-muted-foreground">{membre.profession ?? "—"}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={`/membres/${membre.id}`}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-card-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <Eye className="h-3.5 w-3.5" aria-hidden />
-                        Voir la fiche
-                      </Link>
-                      <MembreFormModal membre={membre} triggerLabel="Modifier" variant="secondary" />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ListeMembres membres={items} />
       )}
     </div>
   );

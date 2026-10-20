@@ -1,0 +1,61 @@
+
+> eglise-saas@0.1.0 build
+> next build --turbopack
+
+▲ Next.js 16.4.2 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 224ms
+- Experiments (use with caution):
+  · serverActions
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 7.8s
+  Running TypeScript ...
+  Finished TypeScript in 14.8s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/12) ...
+  Generating static pages using 3 workers (3/12) 
+  Generating static pages using 3 workers (6/12) 
+  Generating static pages using 3 workers (9/12) 
+✓ Generating static pages using 3 workers (12/12) in 6.8s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /administration
+├ ○ /administration/audit
+├ ƒ /administration/utilisateurs
+├ ○ /aide
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/auth/verification-email
+├ ƒ /cultes
+├ ƒ /dashboard
+├ ƒ /finances
+├ ƒ /finances/caisses
+├ ƒ /finances/cotisations
+├ ƒ /finances/depenses
+├ ƒ /finances/dons-libres
+├ ƒ /finances/virements
+├ ƒ /login
+├ ƒ /membres
+├ ƒ /membres/[id]
+├ ○ /mot-de-passe-oublie
+├ ƒ /organisation
+├ ƒ /organisation/departements/creer
+├ ƒ /organisation/groupes/creer
+├ ƒ /parametres
+├ ○ /patrimoine
+├ ƒ /rapports
+├ ○ /register
+├ ƒ /reinitialisation-mot-de-passe
+├ ƒ /releve/[token]
+├ ƒ /solidarite
+└ ƒ /verifier-code
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

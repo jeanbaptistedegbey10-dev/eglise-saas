@@ -1,392 +1,238 @@
 import type { Metadata } from "next";
 import { CircleAlert, ClipboardCheck } from "lucide-react";
-
-import ClotureExerciceModal from "@/components/rapports/ClotureExerciceModal";
-import TableauQuiADonne from "@/components/rapports/TableauQuiADonne";
+import ClotureExerciceModal, { RouvrirExerciceBloc } from "@/components/rapports/ClotureExerciceModal";
+import RapportExerciceClient from "@/components/rapports/RapportExerciceClient";
 import ExerciceFormModal from "@/components/finances/ExerciceFormModal";
-import { extraireStatistiquesExercice } from "@/actions/rapport";
-import { formatMontant, libelleTypeCotisation } from "@/lib/finance";
-import { libelleModePaiement } from "@/lib/membre";
+import ExportCSVBouton from "@/components/commun/ExportCSVBouton";
 import { prisma } from "@/lib/prisma";
-import type { ExerciceOption, TypeCotisationOption } from "@/types/finance";
-import type { LigneQuiADonne, VersementRecu } from "@/types/rapport";
+import { parseDonneesEcclesiastiques } from "@/lib/membre";
 
 export const metadata: Metadata = {
   title: "Rapports & Clôture",
-  description:
-    "Qui a donné par exercice et cotisation : montants cotisés, attendus, restes à payer, reçus PDF et clôture comptable.",
+  description: "Rapport par exercice et cotisation : filtres instantanes, synthese, registre et cloture.",
 };
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ exercice?: string; type?: string; classe?: string }>;
+  searchParams: Promise<{ exercice?: string; type?: string; cotisation?: string }>;
 };
 
 const TOUTES = "toutes";
+const TYPES_VALIDES = ["RECURRENTE_CLASSE", "PONCTUELLE_EVENEMENT", "ANONYME_PROJET", "QUETE_CULTE"];
+
+function enISO(date: Date | null | undefined): string | null {
+  return date ? date.toISOString().slice(0, 10) : null;
+}
 
 export default async function RapportsPage({ searchParams }: Props) {
-  const {
-    exercice: exerciceRequete,
-    type: typeRequete,
-    classe: classeRequete,
-  } = await searchParams;
+  const { exercice: exerciceRequete, type: typeRequete, cotisation: cotisationRequete } = await searchParams;
+  const typeInitial = TYPES_VALIDES.includes(typeRequete ?? "") ? (typeRequete as string) : TOUTES;
+  const cotisationInitiale = cotisationRequete && cotisationRequete !== TOUTES ? cotisationRequete : TOUTES;
 
-  let exercices: ExerciceOption[] = [];
-  let types: (TypeCotisationOption & {
-    paliers: { id: string; libelleClasse: string; montant: number }[];
-  })[] = [];
+  let exercices: { id: string; annee: number; libelle: string; cloture: boolean }[] = [];
   let erreurBase: string | null = null;
 
   try {
-    const [lignesExercices, lignesTypes] = await Promise.all([
-      prisma.exercice.findMany({ orderBy: { annee: "desc" } }),
-      prisma.typeCotisation.findMany({
-        orderBy: { libelle: "asc" },
-        include: { paliers: { orderBy: { libelleClasse: "asc" } } },
-      }),
-    ]);
-    exercices = lignesExercices.map((e) => ({
-      id: e.id,
-      annee: e.annee,
-      libelle: e.libelle,
-      cloture: e.cloture,
-    }));
-    types = lignesTypes.map((t) => ({
-      id: t.id,
-      libelle: t.libelle,
-      type: t.type,
-      paliers: t.paliers.map((p) => ({
-        id: p.id,
-        libelleClasse: p.libelleClasse,
-        montant: Number(p.montant),
-      })),
-    }));
+    const lignes = await prisma.exercice.findMany({ orderBy: { annee: "desc" } });
+    exercices = lignes.map((e) => ({ id: e.id, annee: e.annee, libelle: e.libelle, cloture: e.cloture }));
   } catch (error) {
     console.error("Erreur chargement rapports :", error);
-    erreurBase = "Impossible de joindre la base de données.";
+    erreurBase = "Impossible de joindre la base de donnees.";
   }
 
-  const exercice =
-    exercices.find((e) => e.id === exerciceRequete) ??
-    exercices.find((e) => !e.cloture) ??
-    exercices[0] ??
-    null;
+  const exerciceDemandeGlobal = exerciceRequete === "" || exerciceRequete === "toutes" || exerciceRequete === "global";
 
-  const typeSelectionne = types.find((t) => t.id === typeRequete) ?? null;
-  const typeIdFiltre = typeSelectionne ? typeSelectionne.id : undefined;
+  const exercice = exerciceDemandeGlobal ? null : (exercices.find((e) => e.id === exerciceRequete) ?? exercices.find((e) => !e.cloture) ?? exercices[0] ?? null);
 
-  // Palier filtré (Option C : l'attendu = montant de la classe choisie).
-  // Rechargé depuis la base pour garantir l'appartenance à l'exercice.
-  let palierFiltre: { id: string; libelleClasse: string; montant: number } | null = null;
-  if (exercice && classeRequete && classeRequete !== TOUTES) {
-    try {
-      const trouve = await prisma.paliereBareme.findFirst({
-        where: {
-          id: classeRequete,
-          exerciceId: exercice.id,
-          ...(typeSelectionne ? { typeCotisationId: typeSelectionne.id } : {}),
-        },
-      });
-      if (trouve) {
-        palierFiltre = {
-          id: trouve.id,
-          libelleClasse: trouve.libelleClasse,
-          montant: Number(trouve.montant),
-        };
-      }
-    } catch (error) {
-      console.error("Erreur chargement palier filtré :", error);
-    }
-  }
-
-  const avecAttendu = palierFiltre !== null;
-
-  // Classes proposées : celles du type filtré, sinon toutes de l'exercice.
-  const classesDisponibles: { id: string; libelleClasse: string; montant: number }[] =
-    exercice
-      ? (
-          await prisma.paliereBareme.findMany({
-            where: {
-              exerciceId: exercice.id,
-              ...(typeSelectionne ? { typeCotisationId: typeSelectionne.id } : {}),
-            },
-            orderBy: { libelleClasse: "asc" },
-          })
-        ).map((p) => ({
-          id: p.id,
-          libelleClasse: p.libelleClasse,
-          montant: Number(p.montant),
-        }))
-      : [];
-
-  let lignes: LigneQuiADonne[] = [];
-  let versementsParMembre: Record<string, VersementRecu[]> = {};
-  let stats: Awaited<ReturnType<typeof extraireStatistiquesExercice>> = null;
+  let cotisationsClient: { id: string; nom: string; description: string | null; type: string; frequence: string; dateDebut: string | null; dateFin: string | null; estCloture: boolean; montantPlancher: number | null; montantCible: number | null; autoriserSurplus: boolean; departementNom: string | null; groupeNom: string | null; baremes: { cible: string; montant: number }[] }[] = [];
+  let versementsClient: { id: string; cotisationId: string; cotisationNom: string; cotisationType: string; membreId: string | null; membreNom: string; membrePrenoms: string; membreTelephone: string | null; classificationSociale: string | null; sexe: string | null; montant: number; montantBase: number; surplus: number; dateEffective: string | null; dateVersement: string | null; modePaiement: string; estAnonyme: boolean }[] = [];
+  let kpi = { totalEncaisse: 0, totalDecaisse: 0, soldeNet: 0, nombreContributeurs: 0, nombreVersements: 0 };
 
   if (exercice && !erreurBase) {
     try {
-      const [membres, paiements] = await Promise.all([
-        prisma.membre.findMany({
-          orderBy: [{ nom: "asc" }, { prenoms: "asc" }],
+      const [cotisations, versements, depenses] = await Promise.all([
+        prisma.cotisation.findMany({
+          where: { exerciceId: exercice.id },
+          include: { departement: { select: { nom: true } }, groupe: { select: { nom: true } }, baremes: true },
+          orderBy: { nom: "asc" },
         }),
-        prisma.paiement.findMany({
-          where: {
-            exerciceId: exercice.id,
-            ...(typeIdFiltre ? { typeCotisationId: typeIdFiltre } : {}),
-          },
-          include: { typeCotisation: { select: { libelle: true } } },
-          orderBy: { datePaiement: "asc" },
+        prisma.versementCotisation.findMany({
+          where: { cotisation: { exerciceId: exercice.id } },
+          include: { membre: true, cotisation: { select: { id: true, nom: true, type: true } } },
+          orderBy: { dateVersement: "asc" },
         }),
+        prisma.depense.findMany({ where: { exerciceId: exercice.id } }),
       ]);
 
-      stats = await extraireStatistiquesExercice(exercice.id, typeIdFiltre);
+      cotisationsClient = cotisations.map((c) => ({
+        id: c.id, nom: c.nom, description: c.description, type: String(c.type), frequence: String(c.frequence),
+        dateDebut: enISO(c.dateDebut), dateFin: enISO(c.dateFin), estCloture: c.estCloture,
+        montantPlancher: c.montantPlancher != null ? Number(c.montantPlancher) : null,
+        montantCible: c.montantCible != null ? Number(c.montantCible) : null,
+        autoriserSurplus: c.autoriserSurplus,
+        departementNom: c.departement?.nom ?? null, groupeNom: c.groupe?.nom ?? null,
+        baremes: c.baremes.map((b) => ({ cible: String(b.cible), montant: Number(b.montant) })),
+      }));
 
-      const totaux = new Map<string, { total: number; nombre: number }>();
-      versementsParMembre = {};
-      for (const p of paiements) {
-        if (p.membreId === null) continue;
-        const entree = totaux.get(p.membreId) ?? { total: 0, nombre: 0 };
-        entree.total += Number(p.montant);
-        entree.nombre += 1;
-        totaux.set(p.membreId, entree);
-        (versementsParMembre[p.membreId] ??= []).push({
-          datePaiement: p.datePaiement.toISOString(),
-          montant: Number(p.montant),
-          modePaiement: libelleModePaiement(p.modePaiement),
-          typeLibelle: p.typeCotisation.libelle,
-          commentaire: p.commentaire,
-        });
-      }
-
-      lignes = membres.map((m) => {
-        const agg = totaux.get(m.id);
-        const totalVerse = agg?.total ?? 0;
-        const nombreVersements = agg?.nombre ?? 0;
-        if (!avecAttendu || !palierFiltre) {
-          return {
-            membreId: m.id,
-            nom: m.nom,
-            prenoms: m.prenoms,
-            telephone: m.telephone,
-            totalVerse,
-            montantAttendu: null,
-            resteAPayer: null,
-            statut: totalVerse > 0 ? "CONTRIBUTEUR" : "SANS_VERSEMENT",
-            nombreVersements,
-          } satisfies LigneQuiADonne;
-        }
-        const attendu = palierFiltre.montant;
-        const reste = Math.max(0, Math.round((attendu - totalVerse) * 100) / 100);
+      versementsClient = versements.map((v) => {
+        const profil = parseDonneesEcclesiastiques(v.membre?.donneesEcclesiastiques ?? null);
         return {
-          membreId: m.id,
-          nom: m.nom,
-          prenoms: m.prenoms,
-          telephone: m.telephone,
-          totalVerse,
-          montantAttendu: attendu,
-          resteAPayer: reste,
-          statut:
-            totalVerse + 0.001 >= attendu
-              ? "SOLDE"
-              : totalVerse > 0
-                ? "PARTIEL"
-                : "RIEN_VERSE",
-          nombreVersements,
-        } satisfies LigneQuiADonne;
+          id: v.id, cotisationId: v.cotisationId, cotisationNom: v.cotisation.nom, cotisationType: String(v.cotisation.type),
+          membreId: v.membreId, membreNom: v.membre?.nom ?? "Anonyme", membrePrenoms: v.membre?.prenoms ?? "",
+          membreTelephone: v.membre?.telephone ?? null,
+          classificationSociale: profil.classificationSociale ?? null, sexe: profil.sexe ?? null,
+          montant: Number(v.montant), montantBase: Number(v.montantBase), surplus: Number(v.surplusVolontaire),
+          dateEffective: enISO(v.dateEffective), dateVersement: enISO(v.dateVersement),
+          modePaiement: String(v.modePaiement), estAnonyme: v.estAnonyme,
+        };
       });
+
+      const totalEncaisse = versements.reduce((s, v) => s + Number(v.montant), 0);
+      const totalDecaisse = depenses.reduce((s, d) => s + Number(d.montant), 0);
+      kpi = {
+        totalEncaisse, totalDecaisse, soldeNet: totalEncaisse - totalDecaisse,
+        nombreContributeurs: new Set(versements.filter((v) => v.membreId).map((v) => v.membreId as string)).size,
+        nombreVersements: versements.length,
+      };
     } catch (error) {
-      console.error("Erreur calcul Qui a donné :", error);
-      erreurBase = "Impossible de calculer le rapport pour cet exercice.";
+      console.error("Erreur calcul rapport :", error);
+      erreurBase = "Impossible de calculer le rapport.";
     }
   }
 
-  const nombreSoldes = lignes.filter((l) => l.statut === "SOLDE").length;
-  const totalAttendu =
-    avecAttendu && palierFiltre
-      ? Math.round(palierFiltre.montant * lignes.length * 100) / 100
-      : null;
-  const totalCotise = lignes.reduce((s, l) => s + l.totalVerse, 0);
+  // Repli global : aucun exercice sélectionné / aucun exercice en base —
+  // on charge toutes les récurrentes tous exercices pour ne jamais masquer le suivi.
+  if (!exercice && !erreurBase) {
+    try {
+      const [cotisations, versements] = await Promise.all([
+        prisma.cotisation.findMany({
+          where: { type: "RECURRENTE_CLASSE" },
+          include: { departement: { select: { nom: true } }, groupe: { select: { nom: true } }, baremes: true },
+          orderBy: { nom: "asc" },
+        }),
+        prisma.versementCotisation.findMany({
+          where: { cotisation: { type: "RECURRENTE_CLASSE" } },
+          include: { membre: true, cotisation: { select: { id: true, nom: true, type: true } } },
+          orderBy: { dateVersement: "asc" },
+        }),
+      ]);
+
+      cotisationsClient = cotisations.map((c) => ({
+        id: c.id, nom: c.nom, description: c.description, type: String(c.type), frequence: String(c.frequence),
+        dateDebut: enISO(c.dateDebut), dateFin: enISO(c.dateFin), estCloture: c.estCloture,
+        montantPlancher: c.montantPlancher != null ? Number(c.montantPlancher) : null,
+        montantCible: c.montantCible != null ? Number(c.montantCible) : null,
+        autoriserSurplus: c.autoriserSurplus,
+        departementNom: c.departement?.nom ?? null, groupeNom: c.groupe?.nom ?? null,
+        baremes: c.baremes.map((b) => ({ cible: String(b.cible), montant: Number(b.montant) })),
+      }));
+
+      versementsClient = versements.map((v) => {
+        const profil = parseDonneesEcclesiastiques(v.membre?.donneesEcclesiastiques ?? null);
+        return {
+          id: v.id, cotisationId: v.cotisationId, cotisationNom: v.cotisation.nom, cotisationType: String(v.cotisation.type),
+          membreId: v.membreId, membreNom: v.membre?.nom ?? "Anonyme", membrePrenoms: v.membre?.prenoms ?? "",
+          membreTelephone: v.membre?.telephone ?? null,
+          classificationSociale: profil.classificationSociale ?? null, sexe: profil.sexe ?? null,
+          montant: Number(v.montant), montantBase: Number(v.montantBase), surplus: Number(v.surplusVolontaire),
+          dateEffective: enISO(v.dateEffective), dateVersement: enISO(v.dateVersement),
+          modePaiement: String(v.modePaiement), estAnonyme: v.estAnonyme,
+        };
+      });
+
+      const totalEncaisse = versements.reduce((s, v) => s + Number(v.montant), 0);
+      kpi = {
+        totalEncaisse, totalDecaisse: 0, soldeNet: totalEncaisse,
+        nombreContributeurs: new Set(versements.filter((v) => v.membreId).map((v) => v.membreId as string)).size,
+        nombreVersements: versements.length,
+      };
+    } catch (error) {
+      console.error("Erreur calcul rapport global :", error);
+      erreurBase = "Impossible de calculer le rapport.";
+    }
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="rapport-page mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
+      <header className="no-print flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium text-accent">Pilotage</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Rapports & clôture
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Qui a donné, par exercice et par cotisation — avec reçus PDF et clôture.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Rapports & cloture</h1>
+          <p className="text-sm text-muted-foreground">Filtres instantanes, detail par cotisation et cloture.</p>
         </div>
-        {exercice && !exercice.cloture && (
-          <ClotureExerciceModal
-            exerciceId={exercice.id}
-            exerciceLibelle={exercice.libelle}
-            exerciceAnnee={exercice.annee}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {!erreurBase && versementsClient.length > 0 && (
+            <ExportCSVBouton
+              base={`grand-livre-${exercice?.libelle ?? "global"}`}
+              colonnes={[
+                "Date effective",
+                "Date saisie",
+                "Cotisation",
+                "Type cotisation",
+                "Membre",
+                "Téléphone",
+                "Montant base",
+                "Surplus",
+                "Montant total",
+                "Mode paiement",
+                "Anonyme",
+              ]}
+              lignes={versementsClient.map((v) => [
+                v.dateEffective ?? "",
+                v.dateVersement ?? "",
+                v.cotisationNom,
+                v.cotisationType,
+                v.estAnonyme || !v.membreId ? "Don anonyme" : `${v.membrePrenoms} ${v.membreNom}`,
+                v.membreTelephone ?? "",
+                v.montantBase,
+                v.surplus,
+                v.montant,
+                v.modePaiement,
+                v.estAnonyme ? "Oui" : "Non",
+              ])}
+            />
+          )}
+          {exercice && !exercice.cloture && (<ClotureExerciceModal exerciceId={exercice.id} exerciceLibelle={exercice.libelle} exerciceAnnee={exercice.annee} />)}
+          {exercice && exercice.cloture && (<RouvrirExerciceBloc exerciceId={exercice.id} exerciceLibelle={exercice.libelle} />)}
+        </div>
       </header>
-
-      {erreurBase && (
-        <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-sm text-red-300">
-          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <span>{erreurBase}</span>
-        </div>
-      )}
-
-      {!erreurBase && !exercice && (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-card-border bg-card/60 px-6 py-16 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-            <ClipboardCheck className="h-7 w-7 text-muted-foreground" aria-hidden />
-          </span>
-          <p className="text-base font-medium text-foreground">Aucun exercice comptable</p>
+      {erreurBase && (<div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-sm text-red-300"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /><span>{erreurBase}</span></div>)}
+      {!erreurBase && !exercice && exercices.length === 0 && versementsClient.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-card-border bg-card/60 px-6 py-10 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted"><ClipboardCheck className="h-7 w-7 text-muted-foreground" aria-hidden /></span>
+          <p className="text-base font-medium text-foreground">Aucun exercice comptable — affichage global des récurrentes ci-dessous</p>
           <ExerciceFormModal />
         </div>
       )}
-
+      {!erreurBase && !exercice && (
+        <RapportExerciceClient
+          exercices={exercices}
+          exerciceId=""
+          exerciceLibelle="Tous les exercices (global)"
+          exerciceCloture={false}
+          cotisations={cotisationsClient}
+          versements={versementsClient}
+          kpi={kpi}
+          typeInitial={typeInitial}
+          cotisationInitiale={cotisationInitiale}
+        />
+      )}
       {exercice && (
-        <form
-          method="get"
-          action="/rapports"
-          className="flex flex-wrap items-end gap-4 rounded-2xl border border-card-border bg-card px-5 py-4 shadow-sm"
-        >
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="rapport-exercice" className="text-sm font-medium text-foreground">
-              Exercice
-            </label>
-            <select
-              id="rapport-exercice"
-              name="exercice"
-              defaultValue={exercice.id}
-              className="h-10 rounded-lg border border-card-border bg-background px-3 text-sm text-foreground outline-none"
-            >
-              {exercices.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.libelle}
-                  {e.cloture ? " (clôturé)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="rapport-type" className="text-sm font-medium text-foreground">
-              Type de cotisation
-            </label>
-            <select
-              id="rapport-type"
-              name="type"
-              defaultValue={typeSelectionne?.id ?? TOUTES}
-              className="h-10 rounded-lg border border-card-border bg-background px-3 text-sm text-foreground outline-none"
-            >
-              <option value={TOUTES}>Toutes cotisations</option>
-              {types.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.libelle} ({libelleTypeCotisation(t.type)})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="rapport-classe" className="text-sm font-medium text-foreground">
-              Classe (barème)
-            </label>
-            <select
-              id="rapport-classe"
-              name="classe"
-              defaultValue={palierFiltre?.id ?? TOUTES}
-              className="h-10 rounded-lg border border-card-border bg-background px-3 text-sm text-foreground outline-none"
-            >
-              <option value={TOUTES}>Toutes classes</option>
-              {classesDisponibles.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.libelleClasse} — {formatMontant(c.montant)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg border border-card-border bg-card px-4 py-2.5 text-sm font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground"
-          >
-            Filtrer
-          </button>
-          {exercice.cloture && (
-            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300">
-              Exercice clôturé — lecture seule
-            </span>
-          )}
-        </form>
-      )}
-
-      {exercice && !avecAttendu && (
-        <p className="rounded-2xl border border-dashed border-card-border bg-card/60 px-5 py-4 text-xs text-muted-foreground">
-          Choisissez une classe pour voir l&apos;attendu et le reste à payer
-          (attendu = montant du palier). Sans classe, le tableau affiche les
-          montants cotisés seuls.
-        </p>
-      )}
-
-      {exercice && stats && (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="flex flex-col gap-1 rounded-2xl border border-card-border bg-card px-5 py-4">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total collecté
-            </span>
-            <span className="text-xl font-semibold tabular-nums text-foreground">
-              {formatMontant(stats.totalGeneral)}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {stats.nombrePaiements} versements
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-2xl border border-card-border bg-card px-5 py-4">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Contributeurs
-            </span>
-            <span className="text-xl font-semibold tabular-nums text-foreground">
-              {stats.nombreContributeurs}
-            </span>
-            <span className="text-xs text-muted-foreground">membres identifiés</span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-2xl border border-card-border bg-card px-5 py-4">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Soldés
-            </span>
-            <span className="text-xl font-semibold tabular-nums text-foreground">
-              {avecAttendu ? `${nombreSoldes} / ${lignes.length}` : "—"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {avecAttendu ? "membres à jour" : "choisissez une classe"}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-2xl border border-card-border bg-card px-5 py-4">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total attendu
-            </span>
-            <span className="text-xl font-semibold tabular-nums text-foreground">
-              {totalAttendu !== null ? formatMontant(totalAttendu) : "—"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              cotisé : {formatMontant(totalCotise)}
-            </span>
-          </div>
-        </section>
-      )}
-
-      {exercice && (
-        <TableauQuiADonne
-          lignes={lignes}
-          versementsParMembre={versementsParMembre}
+        <RapportExerciceClient
+          exercices={exercices}
+          exerciceId={exercice.id}
           exerciceLibelle={exercice.libelle}
-          exerciceAnnee={exercice.annee}
-          cotisationLibelle={typeSelectionne?.libelle ?? null}
-          classeLibelle={palierFiltre?.libelleClasse ?? null}
-          avecAttendu={avecAttendu}
+          exerciceCloture={exercice.cloture}
+          cotisations={cotisationsClient}
+          versements={versementsClient}
+          kpi={kpi}
+          typeInitial={typeInitial}
+          cotisationInitiale={cotisationInitiale}
         />
       )}
     </div>
   );
 }
+
 

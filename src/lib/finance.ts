@@ -1,4 +1,9 @@
-import { ModePaiement, TypeCotisationEnum } from "@/generated/prisma/enums";
+import {
+  CategorieCaisse,
+  CategorieCotisationEnum,
+  ModePaiement,
+  TypeDepense,
+} from "@/generated/prisma/enums";
 
 // Re-export du formatateur de montants (utilisé dans tout l'espace finances).
 export { formatMontant } from "@/lib/membre";
@@ -22,28 +27,31 @@ export const VALEURS_MODE_PAIEMENT = Object.values(ModePaiement) as [
   ...ModePaiement[],
 ];
 
-export const VALEURS_TYPE_COTISATION = Object.values(TypeCotisationEnum) as [
-  TypeCotisationEnum,
-  ...TypeCotisationEnum[],
+export const VALEURS_TYPE_COTISATION = Object.values(CategorieCotisationEnum) as [
+  CategorieCotisationEnum,
+  ...CategorieCotisationEnum[],
 ];
 
 // ---------------------------------------------------------------------------
 // Types de cotisation
 // ---------------------------------------------------------------------------
 
-/** Libellé français des valeurs de l'enum `TypeCotisationEnum`. */
-const LIBELLES_TYPE_COTISATION: Record<TypeCotisationEnum, string> = {
+/** Libellé français des valeurs de l'enum `CategorieCotisationEnum`. */
+const LIBELLES_TYPE_COTISATION: Record<CategorieCotisationEnum, string> = {
   OBLIGATOIRE_BAREME: "Cotisation obligatoire (barème)",
   VOLONTAIRE_CAMPAGNE: "Cotisation volontaire / campagne",
   QUETE_ANONYME: "Quête anonyme",
 };
 
 /** Traduit un type de cotisation (enum Prisma) en libellé lisible. */
-export function libelleTypeCotisation(type: TypeCotisationEnum | string): string {
+export function libelleTypeCotisation(type: CategorieCotisationEnum | string): string {
   return (
-    LIBELLES_TYPE_COTISATION[type as TypeCotisationEnum] ?? String(type)
+    LIBELLES_TYPE_COTISATION[type as CategorieCotisationEnum] ?? String(type)
   );
 }
+
+/** Alias historique — `FinancesTypeTabs`, `/finances/baremes` et `/rapports` l'utilisent encore. */
+export const libelleCategorieCotisation = libelleTypeCotisation;
 
 /**
  * Les 3 grandes catégories du module Finances, telles qu'affichées dans la
@@ -68,3 +76,76 @@ export const CATEGORIES_FINANCES = [
 ] as const;
 
 export type CategorieFinancesId = (typeof CATEGORIES_FINANCES)[number]["id"];
+
+// ---------------------------------------------------------------------------
+// Dépenses & décaissements
+// ---------------------------------------------------------------------------
+
+/** Les 2 natures de décaissement, telles qu'affichées dans le formulaire. */
+export const TYPE_DEPENSES: {
+  value: TypeDepense;
+  label: string;
+  resume: string;
+}[] = [
+  {
+    value: "AFFECTEE_COTISATION",
+    label: "Liée à une cotisation / projet",
+    resume: "Dépense payée sur les fonds déjà collectés (Loyer, Aide, Travaux…).",
+  },
+  {
+    value: "CAISSE_DIRECTE",
+    label: "Sortie directe d'une caisse interne",
+    resume: "Fonds propres de l'église : Caisse Générale, Solidarité ou Travaux.",
+  },
+];
+
+/** Les 3 caisses internes de trésorerie. */
+export const CAISSES_INTERNE: {
+  value: CategorieCaisse;
+  label: string;
+  resume: string;
+}[] = [
+  {
+    value: "GENERALE",
+    label: "Caisse Générale",
+    resume: "Fonctionnement courant et factures.",
+  },
+  {
+    value: "SOLIDARITE",
+    label: "Caisse de Solidarité",
+    resume: "Secours diaconal et aide sociale.",
+  },
+  {
+    value: "TRAVAUX_PROJETS",
+    label: "Caisse Travaux & Projets",
+    resume: "Investissements, équipements et travaux.",
+  },
+];
+
+/** Valeurs des enums dépenses, sous forme exploitable par `z.enum`. */
+export const VALEURS_TYPE_DEPENSE = Object.values(TypeDepense) as [
+  TypeDepense,
+  ...TypeDepense[],
+];
+
+export const VALEURS_CATEGORIE_CAISSE = Object.values(CategorieCaisse) as [
+  CategorieCaisse,
+  ...CategorieCaisse[],
+];
+
+/** Traduit un type de dépense (enum Prisma) en libellé lisible. */
+export function libelleTypeDepense(type: TypeDepense | string): string {
+  return (
+    TYPE_DEPENSES.find((item) => item.value === type)?.label ?? String(type)
+  );
+}
+
+/** Traduit une caisse interne (enum Prisma) en libellé lisible. */
+export function libelleCategorieCaisse(caisse: CategorieCaisse | string): string {
+  return (
+    CAISSES_INTERNE.find((item) => item.value === caisse)?.label ?? String(caisse)
+  );
+}
+
+/** Alias TypeScript — compatibilité si du code référence encore `CategorieCaisse`. */
+export type CategorieCaisseAlias = CategorieCaisse;

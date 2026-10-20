@@ -15,7 +15,8 @@
   --background: #f8f7fc;
   --foreground: #1a1330;
   --card: #ffffff;
-  --card-border: rgb(109 40 217 / 0.16);
+  --border: 214.3 31.8% 85%;
+  --card-border: rgb(109 40 217 / 0.45);
   --primary: #7c3aed;
   --primary-foreground: #ffffff;
   --accent: #7c3aed;
@@ -33,7 +34,8 @@
   --background: #0b0716;
   --foreground: #ece9f8;
   --card: #151026;
-  --card-border: rgb(139 92 246 / 0.28);
+  --border: 214.3 27.9% 20% / 0.8;
+  --card-border: rgb(139 92 246 / 0.55);
   --primary: #8b5cf6;
   --primary-foreground: #ffffff;
   --accent: #a78bfa;
@@ -51,6 +53,7 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-border: var(--card-border);
+  --color-border: var(--border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
@@ -70,4 +73,33 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Impression du rapport : masque navigation et actions, fond blanc. */
+@media print {
+  aside,
+  header.sticky,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .rapport-page,
+  .releve-page {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  /* Impression du relevé individuel : encre lisible quel que soit le thème. */
+  .releve-page,
+  .releve-page * {
+    color: #111 !important;
+    background-color: transparent !important;
+    border-color: #d4d4d8 !important;
+    box-shadow: none !important;
+  }
 }

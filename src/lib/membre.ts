@@ -19,11 +19,30 @@ export function libelleModePaiement(mode: string): string {
   return MODE_PAIEMENT_LABELS[mode] ?? mode;
 }
 
-/** Forme lisible du champ JSON `donneesEcclesiastiques`. */
+/** Forme lisible du champ JSON `donneesEcclesiastiques`.
+ * Stocke aussi le profil étendu (personnel / contact / emploi) sans migration SQL. */
 export type DonneesEcclesiastiques = {
   bapteme?: boolean;
   dateBapteme?: string;
   fonctions?: string[];
+  nomPere?: string;
+  nomMere?: string;
+  dateNaissance?: string;
+  sexe?: string;
+  etatCivil?: string;
+  telephoneFixe?: string;
+  lieuTravail?: string;
+  adresseProfessionnelle?: string;
+  telephoneProfessionnel?: string;
+  classificationSociale?: string;
+  statutMembre?: string;
+  typePersonne?: string;
+  membreDepuis?: string;
+  dateConversion?: string;
+  egliseConversion?: string;
+  eglisePrecedente?: string;
+  adresseLatitude?: number;
+  adresseLongitude?: number;
 };
 
 /**
@@ -38,12 +57,36 @@ export function parseDonneesEcclesiastiques(
   }
 
   const objet = valeur as Record<string, unknown>;
+  const texte = (cle: string): string | undefined =>
+    typeof objet[cle] === "string" && (objet[cle] as string).trim() !== ""
+      ? (objet[cle] as string)
+      : undefined;
+  const nombre = (cle: string): number | undefined =>
+    typeof objet[cle] === "number" && Number.isFinite(objet[cle]) ? (objet[cle] as number) : undefined;
   return {
     bapteme: typeof objet.bapteme === "boolean" ? objet.bapteme : undefined,
-    dateBapteme: typeof objet.dateBapteme === "string" ? objet.dateBapteme : undefined,
+    dateBapteme: texte("dateBapteme"),
     fonctions: Array.isArray(objet.fonctions)
       ? objet.fonctions.filter((fonction): fonction is string => typeof fonction === "string")
       : undefined,
+    nomPere: texte("nomPere"),
+    nomMere: texte("nomMere"),
+    dateNaissance: texte("dateNaissance"),
+    sexe: texte("sexe"),
+    etatCivil: texte("etatCivil"),
+    telephoneFixe: texte("telephoneFixe"),
+    lieuTravail: texte("lieuTravail"),
+    adresseProfessionnelle: texte("adresseProfessionnelle"),
+    telephoneProfessionnel: texte("telephoneProfessionnel"),
+    classificationSociale: texte("classificationSociale"),
+    statutMembre: texte("statutMembre"),
+    typePersonne: texte("typePersonne"),
+    membreDepuis: texte("membreDepuis"),
+    dateConversion: texte("dateConversion"),
+    egliseConversion: texte("egliseConversion"),
+    eglisePrecedente: texte("eglisePrecedente"),
+    adresseLatitude: nombre("adresseLatitude"),
+    adresseLongitude: nombre("adresseLongitude"),
   };
 }
 

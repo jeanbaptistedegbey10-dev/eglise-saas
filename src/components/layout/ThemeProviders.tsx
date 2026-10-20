@@ -1,19 +1,21 @@
 "use client";
 
+import { SessionProvider } from "next-auth/react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type { ComponentProps } from "react";
 
 type Props = ComponentProps<typeof NextThemesProvider>;
 
 /**
- * Fournisseur de thème global (clair / sombre).
- * `attribute="class"` pilote la classe `.dark` sur <html>,
- * compatible avec `@custom-variant dark` de Tailwind v4.
+ * Fournisseurs globaux : session NextAuth (`useSession` dans Header /
+ * Sidebar) + thème clair / sombre (`next-themes`, classe `.dark` sur <html>).
  */
 export default function ThemeProviders({ children, ...props }: Props) {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} {...props}>
-      {children}
-    </NextThemesProvider>
+    <SessionProvider>
+      <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} {...props}>
+        {children}
+      </NextThemesProvider>
+    </SessionProvider>
   );
 }
