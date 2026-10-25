@@ -1,5 +1,5 @@
 import React from "react";
-import { Church } from "lucide-react";
+import { Church, MapPin, Mail, Phone, FileText, ShieldCheck, CreditCard, UserCheck, Users } from "lucide-react";
 import { lireConfiguration } from "@/lib/configuration-eglise";
 
 interface EcranAuthProps {
@@ -16,21 +16,16 @@ export default async function EcranAuth({
   theme = "sky-orange",
 }: EcranAuthProps) {
   const config = await lireConfiguration();
-  const isSky = theme === "sky-orange";
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
       {/* Partie Gauche : Presentation de l'Entite */}
       <div
-        className={`hidden lg:flex flex-col items-center justify-center p-12 text-white text-center ${
-          isSky
-            ? "bg-gradient-to-br from-amber-600 via-orange-600 to-slate-950"
-            : "bg-gradient-to-br from-amber-600 via-orange-600 to-slate-950"
-        }`}
+        className="hidden lg:flex flex-col items-center justify-center text-white text-center p-8 lg:p-12 bg-gradient-to-br from-teal-900 via-slate-900 to-slate-950"
       >
         <div>
           <div className="flex flex-col items-center gap-3 mb-8">
-            <div className="h-24 w-24 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur mx-auto">
+            <div className="h-24 w-24 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur mx-auto mb-4">
               {config.logoUrl ? (
                 <img src={config.logoUrl} alt="Logo officiel" className="h-24 w-24 object-contain rounded-2xl mx-auto" />
               ) : (
@@ -46,36 +41,36 @@ export default async function EcranAuth({
           </div>
 
           <div className="space-y-4 max-w-lg mt-8">
-            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Informations principales</h3>
-              <div className="text-sm space-y-1 text-white/90 text-center">
+            <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-6 space-y-3 w-full max-w-md mx-auto">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70 text-center">Informations principales</h3>
+              <div className="text-sm space-y-2 text-left">
                 {config.adresseSiege || config.ville && (
-                  <p><span className="font-medium text-white">Siège :</span> {config.adresseSiege || ""}{config.ville ? `, ${config.ville}` : ""}</p>
+                  <p className="flex items-center gap-2 text-white/90"><MapPin className="w-4 h-4" /><span className="font-medium text-white">Siège :</span> {config.adresseSiege || ""}{config.ville ? `, ${config.ville}` : ""}</p>
                 )}
-                <p><span className="font-medium text-white">Contact :</span> {config.emailContact || "contact@eglise.org"}</p>
+                <p className="flex items-center gap-2 text-white/90"><Mail className="w-4 h-4" /><span className="font-medium text-white">Contact :</span> {config.emailContact || "contact@eglise.org"}</p>
                 {config.telephones && config.telephones.length > 0 && (
-                  <p><span className="font-medium text-white">Tél :</span> {config.telephones.join(", ")}</p>
+                  <p className="flex items-center gap-2 text-white/90"><Phone className="w-4 h-4" /><span className="font-medium text-white">Tél :</span> {config.telephones.join(", ")}</p>
                 )}
               </div>
             </div>
 
-            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3 mt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Décrets et enregistrements officiels</h3>
-              <div className="text-sm space-y-1 text-white/90 text-center">
+            <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-6 space-y-3 w-full max-w-md mx-auto mt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70 text-center">Décrets et enregistrements officiels</h3>
+              <div className="text-sm space-y-2 text-left">
                 {config.numeroEnregistrement && (
-                  <p><span className="font-medium text-white">N° Enregistrement :</span> {config.numeroEnregistrement}</p>
+                  <p className="flex items-center gap-2 text-white/90"><FileText className="w-4 h-4" /><span className="font-medium text-white">N° Enregistrement :</span> {config.numeroEnregistrement}</p>
                 )}
                 {config.numeroIfu && (
-                  <p><span className="font-medium text-white">N° IFU :</span> {config.numeroIfu}</p>
+                  <p className="flex items-center gap-2 text-white/90"><ShieldCheck className="w-4 h-4" /><span className="font-medium text-white">N° IFU :</span> {config.numeroIfu}</p>
                 )}
                 {config.rib && (
-                  <p><span className="font-medium text-white">RIB :</span> {config.rib}</p>
+                  <p className="flex items-center gap-2 text-white/90"><CreditCard className="w-4 h-4" /><span className="font-medium text-white">RIB :</span> {config.rib}</p>
                 )}
                 {config.pasteurPrincipal && (
-                  <p><span className="font-medium text-white">Pasteur principal :</span> {config.pasteurPrincipal}</p>
+                  <p className="flex items-center gap-2 text-white/90"><UserCheck className="w-4 h-4" /><span className="font-medium text-white">Pasteur principal :</span> {config.pasteurPrincipal}</p>
                 )}
                 {config.secretariat && (
-                  <p><span className="font-medium text-white">Secrétariat :</span> {config.secretariat}</p>
+                  <p className="flex items-center gap-2 text-white/90"><Users className="w-4 h-4" /><span className="font-medium text-white">Secrétariat :</span> {config.secretariat}</p>
                 )}
               </div>
             </div>
