@@ -48,7 +48,9 @@ export default async function EcranAuth({
               Bienvenue sur votre espace
             </h2>
             <p className="text-white/80 leading-relaxed text-sm">
-              {config.mission || "La plateforme unifiée pour simplifier la gestion de votre communauté, le suivi pastoral, les finances et le secrétariat en toute sérénité."}
+              {!config.mission || config.mission === config.nomOfficiel
+                ? "La plateforme unifiée pour la gestion communautaire, le suivi pastoral, les finances et les événements de notre assemblée."
+                : config.mission}
             </p>
 
             <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3 mt-6">
