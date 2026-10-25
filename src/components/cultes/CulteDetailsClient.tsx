@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   Eye,
@@ -233,6 +234,7 @@ function TableauDeroulementOfficiel({ taches, typeImpression }: { taches: TacheR
 }
 
 export default function CulteDetailsClient({ culte, membres, typesTache, configurationEglise }: CulteDetailsClientProps) {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
 
   const [tacheFormOpen, setTacheFormOpen] = useState(false);
@@ -698,7 +700,7 @@ export default function CulteDetailsClient({ culte, membres, typesTache, configu
               </button>
               <button
                 type="button"
-                onClick={() => handleSupprimerTache(tacheASupprimerId)}
+                onClick={() => handleSupprimerTache()}
                 className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
               >
                 Supprimer

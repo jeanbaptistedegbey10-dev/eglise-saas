@@ -391,13 +391,7 @@ const [culteEnEditionId, setCulteEnEditionId] = useState<string | null>(null);
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => supprimerTypeTache(t.id)}
-                        className="p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {/* Suppression de type de tâche désactivée (fonction non disponible) */}
                     </div>
                   </div>
                 ))}

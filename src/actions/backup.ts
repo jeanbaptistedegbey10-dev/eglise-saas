@@ -282,20 +282,20 @@ export async function exporterSauvegardeJSON(): Promise<ResultatExportSauvegarde
         application: "eglise-saas",
         version: VERSION_SAUVEGARDE,
         exporteLe: new Date().toISOString(),
-        nomEglise: configuration?.nomEglise || null,
+        nomEglise: configuration?.nomOfficiel || null,
       },
       donnees,
     };
 
     const contenu = JSON.stringify(sauvegarde, null, 2);
     const jour = sauvegarde.meta.exporteLe.slice(0, 10);
-    const nomEglise = (configuration?.nomEglise ?? "eglise")
+    const nomOfficiel = (configuration?.nomOfficiel ?? "eglise")
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    const nomFichier = `sauvegarde-${nomEglise || "eglise"}-${jour}.json`;
+    const nomFichier = `sauvegarde-${nomOfficiel || "eglise"}-${jour}.json`;
 
     const total = Object.values(comptes).reduce((somme, n) => somme + n, 0);
     await consignerAudit({

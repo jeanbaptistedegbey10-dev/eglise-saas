@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { exigerAccesChemin } from "@/lib/garde-actions";
-import type { CulteFormState } from "@/types/culte";
+import type { CulteFormState, TypeTacheResume } from "@/types/culte";
 
 const identifiantSchema = z.string().trim().min(1, "Identifiant manquant.");
 
@@ -37,6 +37,7 @@ const tacheSchema = z.object({
   description: z.string().trim().max(500, "Description trop longue (500 max).").nullish(),
   responsableMembreId: identifiantSchema.nullish(),
   typeTacheId: identifiantSchema.nullish(),
+  membresEquipe: z.array(z.string()).optional().default([]),
 });
 
 const statutSchema = z.object({

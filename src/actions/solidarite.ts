@@ -9,6 +9,9 @@ import type {
   SolidariteFormState,
   StatutRecurrence,
   RapportMembreDonnees,
+  RapportCotisationLigne,
+  RapportAideLigne,
+  RapportSynthese,
 } from "@/types/solidarite";
 
 // ---------------------------------------------------------------------------
@@ -275,9 +278,10 @@ export async function obtenirRapportMembre(donnees: {
   let debutExercice: Date | null = null;
   let finExercice: Date | null = null;
   if (exercice) {
-    debutExercice = new Date(Date.UTC(exercice.annee, exercice.moisDebut - 1, 1));
+    const ex = exercice as { moisDebut?: number; moisFin?: number };
+    debutExercice = new Date(Date.UTC(exercice.annee, (ex.moisDebut ?? 1) - 1, 1));
     finExercice = new Date(
-      Date.UTC(exercice.annee, exercice.moisFin, 0, 23, 59, 59),
+      Date.UTC(exercice.annee, ex.moisFin ?? 12, 0, 23, 59, 59),
     );
   }
 

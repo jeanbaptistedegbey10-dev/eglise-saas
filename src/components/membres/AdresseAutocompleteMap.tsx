@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { AlertCircle, LoaderCircle, MapPin, Navigation, TriangleAlert } from "lucide-react";
 type Suggestion = { place_id: number; display_name: string; lat: string; lon: string };
 type Props = {
@@ -112,11 +112,11 @@ function rendreTuiles(
   z: number,
   dims: { w: number; h: number },
   modeCarte: 'plan' | 'satellite' | 'dark' = 'plan',
-): JSX.Element[] {
+): React.ReactNode[] {
   const { w, h } = dims;
   const cx = lonToX(centre.lon, z);
   const cy = latToY(centre.lat, z);
-  const tuiles: JSX.Element[] = [];
+  const tuiles: React.ReactNode[] = [];
   for (
     let ty = Math.floor((cy - h / 2) / TILE) - 1;
     ty <= Math.floor((cy + h / 2) / TILE) + 1;

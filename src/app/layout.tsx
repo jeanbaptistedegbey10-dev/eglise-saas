@@ -46,7 +46,7 @@ export default async function RootLayout({
         <ThemeProviders>
           {/* AppShell masque barre latérale et en-tête sur les écrans
               d'authentification (/login, /register, réinitialisation). */}
-          <AppShell nomEglise={configuration?.nomEglise ?? ""} alertes={alertes}>
+          <AppShell nomEglise={configuration?.nomOfficiel ?? ""} alertes={alertes}>
             {children}
           </AppShell>
         </ThemeProviders>

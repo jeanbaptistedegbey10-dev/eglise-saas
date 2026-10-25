@@ -51,7 +51,7 @@ export default async function CulteDetailPage({ params }: { params: Promise<{ id
     select: { id: true, nom: true, prenoms: true },
     orderBy: { nom: "asc" },
   });
-  const membres = membresRaw.map((m) => ({
+  const membres = membresRaw.map((m: any) => ({
     id: m.id,
     nom: m.nom,
     prenoms: m.prenoms,
@@ -145,7 +145,7 @@ export default async function CulteDetailPage({ params }: { params: Promise<{ id
           logoUrl: configEglise.logoUrl || null,
           mission: configEglise.mission || "",
           numeroEnregistrement: configEglise.numeroEnregistrement || "",
-          ifu: configEglise.ifu || "",
+          ifu: configEglise.numeroIfu || "",
           rib: configEglise.rib || "",
         }}
       />

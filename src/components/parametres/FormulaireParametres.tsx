@@ -126,7 +126,7 @@ export default function FormulaireParametres({ initiale }: Props) {
         className={ongletActif === "identite" ? "flex flex-col gap-6" : "hidden"}
       >
         <BlocIdentite initiale={initiale ?? {}} erreurs={etat?.fieldErrors ?? {}} />
-        <LogoUploader nomEglise={initiale.nomEglise} initial={initiale.logoDataUrl} />
+        <LogoUploader nomEglise={initiale.nomOfficiel} initial={initiale.logoDataUrl} />
       </div>
 
       <div

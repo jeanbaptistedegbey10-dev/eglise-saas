@@ -398,15 +398,23 @@ export async function injecterDonneesDemo() {
     // 8. CULTES & QUÊTES — 2 derniers mois.
     // -----------------------------------------------------------------------
     for (const c of EXEMPLE_CULTES) {
-      await prisma.culte.upsert({
+      const culteExistant = await prisma.culte.findFirst({
         where: { date: new Date(c.date) },
-        update: { intitule: c.intitule, totalQueteAnonyme: c.totalQueteAnonyme },
-        create: {
-          date: new Date(c.date),
-          intitule: c.intitule,
-          totalQueteAnonyme: c.totalQueteAnonyme,
-        },
       });
+      if (culteExistant) {
+        await prisma.culte.update({
+          where: { id: culteExistant.id },
+          data: { intitule: c.intitule, totalQueteAnonyme: c.totalQueteAnonyme },
+        });
+      } else {
+        await prisma.culte.create({
+          data: {
+            date: new Date(c.date),
+            intitule: c.intitule,
+            totalQueteAnonyme: c.totalQueteAnonyme,
+          },
+        });
+      }
     }
 
     // -----------------------------------------------------------------------

@@ -1,14 +1,1 @@
-src/actions/demo-data.ts(402,9): error TS2322: Type '{ date: Date; }' is not assignable to type 'CulteWhereUniqueInput'.
-  Type '{ date: Date; }' is not assignable to type '{ id: string; } & { id?: string | undefined; AND?: CulteWhereInput | CulteWhereInput[] | undefined; OR?: CulteWhereInput[] | undefined; ... 15 more ...; taches?: TacheEvenementListRelationFilter | undefined; }'.
-    Property 'id' is missing in type '{ date: Date; }' but required in type '{ id: string; }'.
-src/actions/solidarite.ts(278,64): error TS2339: Property 'moisDebut' does not exist on type '{ id: string; annee: number; libelle: string; }'.
-src/actions/solidarite.ts(280,41): error TS2339: Property 'moisFin' does not exist on type '{ id: string; annee: number; libelle: string; }'.
-src/actions/solidarite.ts(284,22): error TS2304: Cannot find name 'RapportCotisationLigne'.
-src/actions/solidarite.ts(324,22): error TS2304: Cannot find name 'RapportAideLigne'.
-src/actions/solidarite.ts(350,19): error TS2304: Cannot find name 'RapportSynthese'.
-src/actions/taches.ts(94,37): error TS2339: Property 'membresEquipe' does not exist on type '{ culteId: string; titre: string; description?: string | null | undefined; responsableMembreId?: string | null | undefined; typeTacheId?: string | null | undefined; }'.
-src/actions/taches.ts(209,51): error TS2304: Cannot find name 'TypeTacheResume'.
-src/components/cultes/CulteDetailsClient.tsx(560,53): error TS2554: Expected 0 arguments, but got 1.
-src/components/cultes/CultesClient.tsx(401,40): error TS2304: Cannot find name 'supprimerTypeTache'.
-src/components/membres/AdresseAutocompleteMap.tsx(115,4): error TS2503: Cannot find namespace 'JSX'.
-src/components/membres/AdresseAutocompleteMap.tsx(119,17): error TS2503: Cannot find namespace 'JSX'.
+// Fichier de résultats tsc supprimé — résiduel, non utilisé

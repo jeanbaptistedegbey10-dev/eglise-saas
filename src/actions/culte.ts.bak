@@ -1,4 +1,4 @@
-"use server";
+// Fichier .bak supprimé — résiduel, non utilisé
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";

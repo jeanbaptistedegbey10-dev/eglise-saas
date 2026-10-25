@@ -74,6 +74,8 @@ export default async function CultesPage() {
         intitule: c.intitule,
         lieu: c.lieu ?? null,
         description: c.description ?? null,
+        theme: c.theme ?? null,
+        descriptionTheme: c.descriptionTheme ?? null,
         statut,
         type,
         responsable,
