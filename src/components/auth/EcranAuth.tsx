@@ -22,19 +22,19 @@ export default async function EcranAuth({
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
       {/* Partie Gauche : Presentation de l'Entite */}
       <div
-        className={`hidden lg:flex flex-col items-center justify-between p-12 text-white text-center ${
+        className={`hidden lg:flex flex-col items-center justify-center p-12 text-white text-center ${
           isSky
-            ? "bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900"
-            : "bg-gradient-to-br from-violet-900 via-indigo-900 to-slate-950"
+            ? "bg-gradient-to-br from-amber-600 via-orange-600 to-slate-950"
+            : "bg-gradient-to-br from-amber-600 via-orange-600 to-slate-950"
         }`}
       >
         <div>
           <div className="flex flex-col items-center gap-3 mb-8">
-            <div className="h-20 w-20 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur">
+            <div className="h-24 w-24 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur mx-auto">
               {config.logoUrl ? (
-                <img src={config.logoUrl} alt="Logo officiel" className="h-20 w-20 object-contain rounded-2xl" />
+                <img src={config.logoUrl} alt="Logo officiel" className="h-24 w-24 object-contain rounded-2xl mx-auto" />
               ) : (
-                <Church className="h-10 w-10 text-white"/>
+                <Church className="h-12 w-12 text-white mx-auto"/>
               )}
             </div>
             <div>
@@ -48,7 +48,7 @@ export default async function EcranAuth({
           <div className="space-y-4 max-w-lg mt-8">
             <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Informations principales</h3>
-              <div className="text-sm space-y-1 text-white/90 text-left">
+              <div className="text-sm space-y-1 text-white/90 text-center">
                 {config.adresseSiege || config.ville && (
                   <p><span className="font-medium text-white">Siège :</span> {config.adresseSiege || ""}{config.ville ? `, ${config.ville}` : ""}</p>
                 )}
@@ -61,7 +61,7 @@ export default async function EcranAuth({
 
             <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3 mt-4">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Décrets et enregistrements officiels</h3>
-              <div className="text-sm space-y-1 text-white/90 text-left">
+              <div className="text-sm space-y-1 text-white/90 text-center">
                 {config.numeroEnregistrement && (
                   <p><span className="font-medium text-white">N° Enregistrement :</span> {config.numeroEnregistrement}</p>
                 )}
@@ -82,7 +82,7 @@ export default async function EcranAuth({
           </div>
         </div>
 
-        <div className="pt-6 border-t border-white/10 text-xs text-white/60 flex items-center justify-between">
+        <div className="pt-6 border-t border-white/10 text-xs text-white/60 flex items-center justify-center text-center w-full">
           <span>&copy; {new Date().getFullYear()} &mdash; Solution de gestion église</span>
           <span>Sécurisé & Conforme</span>
         </div>
