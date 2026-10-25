@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CircleAlert } from "lucide-react";
+import { CalendarDays, CircleAlert } from "lucide-react";
 import CultesClient from "@/components/cultes/CultesClient";
 import { prisma } from "@/lib/prisma";
 import type { CulteResume, MembreOption, StatutEvenement, StatutTache, TypeEvenement, TypeTacheResume } from "@/types/culte";
@@ -102,6 +102,9 @@ export default async function CultesPage() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500/15">
+            <CalendarDays className="h-5 w-5 text-orange-600 dark:text-orange-300" aria-hidden />
+          </span>
           <p className="text-sm font-medium text-accent">Vie de l&apos;église</p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Cultes &amp; Événements</h1>
           <p className="text-sm text-muted-foreground">Planification, tâches et responsabilités — sans saisie financière.</p>

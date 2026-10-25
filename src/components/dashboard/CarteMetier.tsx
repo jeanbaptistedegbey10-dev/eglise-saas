@@ -12,6 +12,7 @@ export type TeinteCarte =
   | "violet"
   | "indigo"
   | "emerald"
+  | "green"
   | "amber"
   | "rose"
   | "blue"
@@ -34,6 +35,11 @@ const TEINTES: Record<TeinteCarte, { pastille: string; texte: string; survol: st
     pastille: "bg-emerald-500/15",
     texte: "text-emerald-600 dark:text-emerald-300",
     survol: "hover:border-emerald-500/40",
+  },
+  green: {
+    pastille: "bg-green-500/15",
+    texte: "text-green-600 dark:text-green-300",
+    survol: "hover:border-green-500/40",
   },
   amber: {
     pastille: "bg-amber-500/15",

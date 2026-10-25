@@ -27,7 +27,7 @@ export default function ThemeToggle() {
       {isDark ? (
         <Sun className="h-4.5 w-4.5 text-amber-400" aria-hidden />
       ) : (
-        <Moon className="h-4.5 w-4.5 text-indigo-600" aria-hidden />
+        <Moon className="h-4.5 w-4.5 text-teal-600" aria-hidden />
       )}
     </button>
   );

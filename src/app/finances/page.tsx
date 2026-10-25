@@ -76,6 +76,9 @@ return (
 <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
 <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 <div className="flex flex-col gap-1">
+<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15">
+<Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-300" aria-hidden />
+</span>
 <p className="text-sm font-medium text-accent">Finances</p>
 <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Tableau de bord Finances</h1>
 <p className="text-sm text-muted-foreground">Encaisse, decaisse, solde net et caisses reelles de l exercice.</p>

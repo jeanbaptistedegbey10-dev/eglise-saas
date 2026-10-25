@@ -128,6 +128,9 @@ return (
 <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
 <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 <div className="flex flex-col gap-1">
+<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15">
+<HeartHandshake className="h-5 w-5 text-rose-600 dark:text-rose-300" aria-hidden />
+</span>
 <p className="text-sm font-medium text-accent">Pastorale</p>
 <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Solidarite et Suivi pastoral</h1>
 <p className="text-sm text-muted-foreground">Synthese des soutiens et registre de chaque fidele.</p>
@@ -165,7 +168,9 @@ return (
 </section>
 <section aria-label="Registre pastoral" className="flex flex-col gap-4">
 <div className="flex items-center gap-2">
-<HeartHandshake className="h-5 w-5 text-accent" aria-hidden />
+<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15">
+<HeartHandshake className="h-5 w-5 text-rose-600 dark:text-rose-300" aria-hidden />
+</span>
 <h2 className="text-base font-semibold text-foreground">Registre pastoral — tous les fideles</h2>
 </div>
 <RegistrePastoralTable lignes={lignes} fiches={fiches} membres={membres ?? []} exercices={exercices ?? []} />

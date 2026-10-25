@@ -1,4 +1,5 @@
-import { Church, CreditCard, Quote, ShieldCheck, Users } from "lucide-react";
+import { Church, Quote } from "lucide-react";
+import { lireConfiguration } from "@/lib/configuration-eglise";
 
 // ---------------------------------------------------------------------------
 // Mise en page « split-screen » des écrans d'authentification.
@@ -17,31 +18,15 @@ type Props = {
   theme?: "violet" | "sky-orange";
 };
 
-type FeatureCardProps = {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-};
 
-function FeatureCard({ icon, title, desc }: FeatureCardProps) {
-  return (
-    <div className="flex flex-col items-center gap-3 p-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm text-center hover:bg-white/20 transition-colors duration-200">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 shadow-lg shadow-orange-500/30">
-        {icon}
-      </div>
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <p className="text-xs text-sky-200 leading-relaxed max-w-xs">{desc}</p>
-    </div>
-  );
-}
-
-export default function EcranAuth({ 
+export default async function EcranAuth({ 
   titre, 
   sousTitre, 
   children, 
   theme = "violet" 
 }: Props) {
   const isSky = theme === "sky-orange";
+  const config = await lireConfiguration();
 
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-2">
@@ -80,23 +65,53 @@ export default function EcranAuth({
                 en un seul endroit.
               </p>
 
-              {/* Fonctionnalités en cartes avec icônes colorées */}
-              <div className="grid gap-4 w-full max-w-md">
-                <FeatureCard
-                  icon={<CreditCard className="h-5 w-5 text-white" />}
-                  title="Finances & Cotisations"
-                  desc="Gestion transparente des dons, dîmes et cotisations en XOF (+228)."
-                />
-                <FeatureCard
-                  icon={<Users className="h-5 w-5 text-white" />}
-                  title="Membres & Secrétariat"
-                  desc="Suivi complet des membres, départements, ministères et événements."
-                />
-                <FeatureCard
-                  icon={<ShieldCheck className="h-5 w-5 text-white" />}
-                  title="Sécurité & Rôles"
-                  desc="Accès sécurisés par rôle (Pasteur, Trésorier, Secrétaire)."
-                />
+              {/* Informations de l'église */}
+              <div className="mt-8 w-full max-w-md space-y-3 text-center">
+                {config.logoUrl ? (
+                  <img
+                    src={config.logoUrl}
+                    alt={config.nomOfficiel}
+                    className="mx-auto h-16 w-16 rounded-full object-cover bg-white/20"
+                  />
+                ) : (
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
+                    <Church className="h-8 w-8 text-white" aria-hidden />
+                  </div>
+                )}
+                <h2 className="text-2xl font-bold text-white">
+                  {config.nomOfficiel || "Église"}
+                </h2>
+                {config.mission && (
+                  <p className="mt-2 text-lg text-white/90 max-w-md leading-relaxed">
+                    {config.mission}
+                  </p>
+                )}
+                <div className="mt-6 w-full space-y-2 text-sm text-white/90">
+                  {config.adresseSiege && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-white/70">Adresse :</span>
+                      <span>{config.adresseSiege}</span>
+                    </div>
+                  )}
+                  {config.ville && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-white/70">Ville :</span>
+                      <span>{config.ville}</span>
+                    </div>
+                  )}
+                  {config.emailContact && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-white/70">Contact :</span>
+                      <span>{config.emailContact}</span>
+                    </div>
+                  )}
+                  {config.telephones?.length && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-white/70">Tél :</span>
+                      <span>{config.telephones.join(", ")}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </>
@@ -136,29 +151,54 @@ export default function EcranAuth({
             La plateforme qui simplifie la gestion de votre communauté
             chrétienne.
           </p>
-          <ul className="mt-8 grid gap-3 text-sm text-white/70">
-            <li className="flex items-start gap-2.5">
-              <ShieldCheck
-                className="mt-0.5 h-4 w-4 shrink-0 text-violet-300"
-                aria-hidden
+          {/* Informations de l'église */}
+          <div className="mt-8 w-full max-w-md space-y-3 text-left text-white/90">
+            {config.logoUrl ? (
+              <img
+                src={config.logoUrl}
+                alt={config.nomOfficiel}
+                className="h-12 w-12 rounded-full object-cover bg-white/20 shrink-0"
               />
-              Cotisations, dons et finances suivis en toute transparence.
-            </li>
-            <li className="flex items-start gap-2.5">
-              <ShieldCheck
-                className="mt-0.5 h-4 w-4 shrink-0 text-violet-300"
-                aria-hidden
-              />
-              Membres, départements et groupes centralisés en un seul endroit.
-            </li>
-            <li className="flex items-start gap-2.5">
-              <ShieldCheck
-                className="mt-0.5 h-4 w-4 shrink-0 text-violet-300"
-                aria-hidden
-              />
-              Données sécurisées et accès contrôlés par rôle.
-            </li>
-          </ul>
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 shrink-0">
+                <Church className="h-6 w-6 text-white" aria-hidden />
+              </div>
+            )}
+            <h2 className="text-xl font-bold text-white">
+              {config.nomOfficiel || "Église"}
+            </h2>
+            {config.mission && (
+              <p className="mt-2 text-base text-white/90 leading-relaxed">
+                {config.mission}
+              </p>
+            )}
+            <div className="mt-4 w-full space-y-2 text-sm">
+              {config.adresseSiege && (
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 text-white/70">Adresse :</span>
+                  <span>{config.adresseSiege}</span>
+                </div>
+              )}
+              {config.ville && (
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 text-white/70">Ville :</span>
+                  <span>{config.ville}</span>
+                </div>
+              )}
+              {config.emailContact && (
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 text-white/70">Contact :</span>
+                  <span>{config.emailContact}</span>
+                </div>
+              )}
+              {config.telephones?.length && (
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 text-white/70">Tél :</span>
+                  <span>{config.telephones.join(", ")}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Carte de témoignage / assurance */}

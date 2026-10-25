@@ -97,6 +97,9 @@ export default async function MembresPage() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-green-500/15">
+            <Users className="h-5 w-5 text-green-600 dark:text-green-300" aria-hidden />
+          </span>
           <p className="text-sm font-medium text-accent">Communauté</p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Gestion des membres

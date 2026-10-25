@@ -257,7 +257,9 @@ export default async function DashboardPage() {
               <section aria-label="Activité récente" className="flex flex-col gap-4 rounded-2xl border border-card-border bg-card p-5 shadow-sm lg:col-span-3">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                    <Activity className="h-4 w-4 text-accent" aria-hidden />
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15">
+                      <Activity className="h-5 w-5 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                    </span>
                     Activité récente
                   </h2>
                   <Link href="/finances/cotisations?tab=versements" className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
@@ -295,7 +297,9 @@ export default async function DashboardPage() {
               <section aria-label="Cultes à venir" className="flex flex-col gap-3 rounded-2xl border border-card-border bg-card p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                    <CalendarDays className="h-4 w-4 text-accent" aria-hidden />
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500/15">
+                      <CalendarDays className="h-5 w-5 text-orange-600 dark:text-orange-300" aria-hidden />
+                    </span>
                     Cultes à venir
                   </h2>
                   {aAccesAuChemin(role, "/cultes") && (
@@ -307,8 +311,8 @@ export default async function DashboardPage() {
                 </div>
                 {cultesAVenir.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-card-border bg-card/60 px-6 py-8 text-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                      <Church className="h-6 w-6 text-muted-foreground" aria-hidden />
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/15">
+                      <Church className="h-6 w-6 text-orange-600 dark:text-orange-300" aria-hidden />
                     </span>
                     <p className="text-sm font-medium text-foreground">Aucun culte à venir</p>
                   </div>

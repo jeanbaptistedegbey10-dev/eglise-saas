@@ -127,7 +127,7 @@ export default function ChatbotAide() {
     <div className="fixed bottom-6 right-6 z-50">
       <button
         onClick={() => setOuvert(!ouvert)}
-        className="rounded-full bg-indigo-600 px-4 py-2 text-white shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        className="rounded-full bg-primary px-4 py-2 text-primary-foreground shadow-lg hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={ouvert ? "Fermer l’aide" : "Ouvrir l’aide"}
       >
         {ouvert ? "✕" : "? Aide"}
@@ -139,7 +139,7 @@ export default function ChatbotAide() {
             <h3 className="text-sm font-semibold">Aide rapide</h3>
             <a
               href="/aide"
-              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="text-xs text-primary dark:text-primary hover:underline"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -169,7 +169,7 @@ export default function ChatbotAide() {
                   <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{e.question}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{e.reponse}</p>
                   {e.roles && e.roles.length > 0 && (
-                    <span className="text-[10px] uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+                    <span className="text-[10px] uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary dark:text-primary">
                       {e.roles.map((r) => LIBELLES_ROLE[r]).join(", ")}
                     </span>
                   )}

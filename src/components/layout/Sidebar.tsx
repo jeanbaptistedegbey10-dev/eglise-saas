@@ -46,19 +46,21 @@ const NAV_ITEMS: NavItem[] = [
     label: "Organisation",
     description: "Départements & groupes",
     icon: Network,
+    iconColor: "text-fuchsia-500",
   },
   {
     href: "/membres",
     label: "Communauté",
     description: "Membres & familles",
     icon: Users,
+    iconColor: "text-emerald-500",
   },
   {
     href: "/finances",
     label: "Finances",
     description: "Cotisations & quêtes",
     icon: Wallet,
-    iconColor: "text-emerald-500",
+    iconColor: "text-amber-500",
     children: [
       { href: "/finances", label: "Vue d'ensemble" },
       { href: "/finances/cotisations?tab=types", label: "Cotisations & Barèmes" },
@@ -75,7 +77,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Cultes & Événements",
     description: "Calendrier du culte",
     icon: CalendarDays,
-    iconColor: "text-amber-500",
+    iconColor: "text-orange-500",
   },
   {
     href: "/solidarite",
@@ -89,13 +91,14 @@ const NAV_ITEMS: NavItem[] = [
     label: "Rapports & Clôture",
     description: "Bilans & clôtures",
     icon: ClipboardCheck,
+    iconColor: "text-cyan-500",
   },
   {
     href: "/administration/utilisateurs",
     label: "Administration",
     description: "Comptes, accès & journal d'audit",
     icon: ShieldCheck,
-    iconColor: "text-violet-500",
+    iconColor: "text-indigo-900",
     children: [
       { href: "/administration/utilisateurs", label: "Comptes & Accès" },
       { href: "/administration/audit", label: "Journal d'Audit" },
@@ -107,6 +110,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Paramètres",
     description: "Configuration de l'église",
     icon: Settings,
+    iconColor: "text-slate-500",
   },
 ];
 
@@ -318,9 +322,12 @@ export default function Sidebar({
     >
       {/* 1. Logo & Bouton Fermer */}
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border pb-4 md:border-sidebar-border md:px-6 md:py-5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground relative">
           {initiale}
-        </span>
+          <span className="absolute -right-2 -bottom-2 h-3 w-3 rounded-full bg-amber-400 border-2 border-card shadow-sm ring-1 ring-primary/30">
+            <span className="text-[6px] text-primary-foreground leading-none flex items-center justify-center">•</span>
+          </span>
+        </div>
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-semibold text-foreground">{nomAffiche}</span>
           <span className="text-xs text-muted-foreground">Gestion communautaire</span>
