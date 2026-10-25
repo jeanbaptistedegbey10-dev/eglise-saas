@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { CircleAlert, HeartHandshake, Lock } from "lucide-react";
-import AideFormModal from "@/components/solidarite/AideFormModal";
-import GestionSolidarite, { type SolidariteMembreItem } from "@/components/solidarite/GestionSolidarite";
 import RegistrePastoralTable from "@/components/solidarite/RegistrePastoralTable";
+import RapportActionsBar from "@/components/solidarite/RapportActionsBar";
+import GestionSolidarite from "@/components/solidarite/GestionSolidarite";
 import type { Membre } from "@/generated/prisma/client";
 import { formatMontant, parseDonneesEcclesiastiques } from "@/lib/membre";
 import { prisma } from "@/lib/prisma";
@@ -25,14 +25,23 @@ export default async function SolidaritePage() {
 let membres: MembreOption[] = [];
 let lignes: RegistrePastoralLigne[] = [];
 let fiches: FichePastoraleMembre[] = [];
-let rapports: SolidariteMembreItem[] = [];
-let exerciceLibelle = "";
 let synthese: SyntheseSoutiens = { totalAidesDistribuees: 0, nombreFidelesAssistés: 0, montantMoyenParSoutien: 0, nombreDecaissements: 0 };
 let erreurBase: string | null = null;
+let exerciceLibelle: string = "";
+let rapports: any[] = [];
+
+/* État du modal de rapport (remplace l'ancien bouton unique "Nouvelle aide"). */
+let rapportOpen = false;
+let rapportMembre: MembreOption | null = null;
+let rapportMode: "exercice" | "historique" = "exercice";
+let rapportExerciceId: string | null = null;
+
+const exercices = await prisma.exercice.findMany({
+  orderBy: { createdAt: "desc" },
+}).catch(() => []);
+
 try {
-const [exercices, tousMembres] = await Promise.all([
-prisma.exercice.findMany({ orderBy: { annee: "desc" } }),
-prisma.membre.findMany({
+const tousMembres = await prisma.membre.findMany({
         orderBy: [{ nom: "asc" }, { prenoms: "asc" }],
         // `photoDataUrl` n'est pas nécessaire ici : on ne sélectionne que les
         // champs utilisés pour le listing, afin de ne pas charger les data URL.
@@ -43,15 +52,21 @@ prisma.membre.findMany({
           telephone: true,
           donneesEcclesiastiques: true,
         },
-      }),
-]);
+      });
 const exercice = exercices.find((e) => !e.cloture) ?? exercices[0] ?? null;
+exerciceLibelle = exercice?.libelle ?? "";
 const exerciceId: string | null = exercice?.id ?? null;
+rapportExerciceId = exerciceId;
 const [versements, paiements, depenses] = await Promise.all([
 exerciceId ? prisma.versementCotisation.findMany({ where: { cotisation: { exerciceId } }, include: { cotisation: { select: { nom: true } } } }) : Promise.resolve([] as never[]),
 exerciceId ? prisma.paiement.findMany({ where: { exerciceId }, include: { typeCotisation: { select: { libelle: true } } } }) : Promise.resolve([] as never[]),
 exerciceId ? prisma.depense.findMany({ where: { exerciceId }, include: { caisse: { select: { nom: true } }, cotisation: { select: { nom: true } } }, orderBy: { dateDepense: "desc" } }) : Promise.resolve([] as never[]),
 ]);
+rapports = await prisma.aideDistribution.findMany({
+  include: { beneficiaireMembre: true },
+  orderBy: { dateDistribution: "desc" },
+}).catch(() => []);
+
 membres = tousMembres.map((m) => ({ id: m.id, nom: m.nom, prenoms: m.prenoms, telephone: m.telephone }));
 const depensesT = depenses as Array<{ id: string; beneficiaireMembreId: string | null; montant: unknown; libelle: string; description: string | null; dateDepense: Date; numeroPiece: string | null; caisseSource: string; caisse: { nom: string } | null; cotisation: { nom: string } | null }>;
 const versementsT = versements as Array<{ id: string; membreId: string | null; montant: unknown; montantBase: unknown; surplusVolontaire: unknown; modePaiement: string; commentaire: string | null; dateEffective: Date; cotisation: { nom: string } | null }>;
@@ -102,28 +117,13 @@ const c = contributions.get(m.id) ?? { total: 0, surplus: 0 };
 const a = totaux.get(m.id) ?? { total: 0, nombre: 0 };
 return { id: m.id, nom: m.nom, prenoms: m.prenoms, telephone: m.telephone, classe: classeDe(m.donneesEcclesiastiques), totalDonne: c.total, totalSurplus: c.surplus, totalAidesRecues: a.total, participations: (parts.get(m.id) ?? []).sort((x, y) => y.dateISO.localeCompare(x.dateISO)), aidesPercues: (aidesMap.get(m.id) ?? []).sort((x, y) => y.dateISO.localeCompare(x.dateISO)) };
 });
-exerciceLibelle = exercice?.libelle ?? "";
-const [hVers, hPay, hDep] = await Promise.all([
-prisma.versementCotisation.findMany({ select: { membreId: true, montant: true, dateEffective: true, cotisation: { select: { nom: true } } } }),
-prisma.paiement.findMany({ select: { membreId: true, montant: true, datePaiement: true, typeCotisation: { select: { libelle: true } } } }),
-prisma.depense.findMany({ where: { beneficiaireMembreId: { not: null } }, select: { beneficiaireMembreId: true, montant: true } }),
-]);
-const hTot = new Map<string, { total: number; nombre: number }>();
-const hAides = new Map<string, number>();
-for (const v of hVers) { if (!v.membreId) continue; const t = Number(v.montant); const e = hTot.get(v.membreId) ?? { total: 0, nombre: 0 }; e.total += t; e.nombre += 1; hTot.set(v.membreId, e); }
-for (const p of hPay) { if (!p.membreId) continue; const t = Number(p.montant); const e = hTot.get(p.membreId) ?? { total: 0, nombre: 0 }; e.total += t; e.nombre += 1; hTot.set(p.membreId, e); }
-for (const d of hDep) { const mid = String(d.beneficiaireMembreId); hAides.set(mid, (hAides.get(mid) ?? 0) + Number(d.montant)); }
-rapports = tousMembres.map((m) => {
-const c = contributions.get(m.id) ?? { total: 0, surplus: 0 };
-const a = totaux.get(m.id) ?? { total: 0, nombre: 0 };
-const h = hTot.get(m.id) ?? { total: 0, nombre: 0 };
-return { membreId: m.id, nom: m.nom, prenoms: m.prenoms, telephone: m.telephone, exerciceTotal: c.total, exerciceNombre: (parts.get(m.id) ?? []).length, totalHistorique: h.total, nombreHistorique: h.nombre, aidesExercice: a.total, aidesHistorique: hAides.get(m.id) ?? 0, lignesExercice: [], lignesHistorique: [] };
-});
+
+
 } catch (e) {
 console.error("Erreur chargement solidarite :", e);
 erreurBase = "Impossible de joindre la base. Verifiez DATABASE_URL puis reessayez.";
 }
-const dateInitiale = versISO(new Date());
+
 return (
 <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
 <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -134,7 +134,7 @@ return (
 </div>
 <div className="flex items-center gap-3">
 {!erreurBase && (<span className="rounded-full border border-card-border bg-muted px-3 py-1 text-xs text-muted-foreground">{lignes.length} fidele(s)</span>)}
-{!erreurBase && (<AideFormModal membres={membres} dateInitiale={dateInitiale} />)}
+{!erreurBase && (<RapportActionsBar membres={membres ?? []} exercices={exercices ?? []} />)}
 </div>
 </header>
 {erreurBase ? (
@@ -168,10 +168,10 @@ return (
 <HeartHandshake className="h-5 w-5 text-accent" aria-hidden />
 <h2 className="text-base font-semibold text-foreground">Registre pastoral — tous les fideles</h2>
 </div>
-<RegistrePastoralTable lignes={lignes} fiches={fiches} />
+<RegistrePastoralTable lignes={lignes} fiches={fiches} membres={membres ?? []} exercices={exercices ?? []} />
 </section>
 <section aria-label="Rapport individuel">
-<GestionSolidarite membres={membres} items={rapports} exerciceLibelle={exerciceLibelle} />
+<GestionSolidarite membres={membres ?? []} items={rapports ?? []} exerciceLibelle={exerciceLibelle} />
 </section>
 </>
 )}

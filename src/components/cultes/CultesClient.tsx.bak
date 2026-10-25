@@ -1,0 +1,749 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import {
+  Calendar,
+  ListChecks,
+  Settings,
+  Plus,
+  Printer,
+  Trash2,
+  Edit2,
+  Play,
+  Pause,
+  CheckCircle2,
+  User,
+  AlertCircle,
+} from "lucide-react";
+import CulteFormModal from "./CulteFormModal";
+import TacheFormModal from "./TacheFormModal";
+import ProgrammePdfModal from "./ProgrammePdfModal";
+import { changerStatutTache } from "@/actions/taches";
+import { gererTypesTache, supprimerCulte } from "@/actions/culte";
+import type {
+  CulteResume,
+  MembreOption,
+  TypeTacheResume,
+  TacheResume,
+  StatutTache,
+} from "@/types/culte";
+
+type Props = {
+  cultes?: CulteResume[];
+  membres?: MembreOption[];
+  typesTache?: TypeTacheResume[];
+};
+
+const STATUT_LABELS: Record<StatutTache, string> = {
+  A_FAIRE: "À faire",
+  EN_COURS: "En cours",
+  CLOTUREE: "Clôturée",
+};
+
+const STATUT_COLORS: Record<StatutTache, string> = {
+  A_FAIRE: "bg-muted text-muted-foreground",
+  EN_COURS: "bg-amber-100 text-amber-800 border-amber-200",
+  CLOTUREE: "bg-emerald-100 text-emerald-800 border-emerald-200",
+};
+
+export default function CultesClient({
+  cultes = [],
+  membres = [],
+  typesTache = [],
+}: Props) {
+  const [onglet, setOnglet] = useState<
+    "CALENDRIER" | "TACHES" | "CONFIGURATION"
+  >("CALENDRIER");
+  const [modalCulteOuvert, setModalCulteOuvert] = useState(false);
+  const [modalTacheCulteId, setModalTacheCulteId] = useState<string | null>(
+    null,
+  );
+  const [pdfCulteId, setPdfCulteId] = useState<string | null>(null);
+  const [filtreStatut, setFiltreStatut] = useState<
+    "TOUS" | "A_FAIRE" | "EN_COURS" | "CLOTUREE"
+  >("TOUS");
+
+  const cultePourPdf = pdfCulteId
+    ? cultes.find((c) => c.id === pdfCulteId)
+    : null;
+  const cultePourTache = modalTacheCulteId
+    ? cultes.find((c) => c.id === modalTacheCulteId)
+    : null;
+
+  /* ------------------------------------------------------------------ */
+  /*  Onglet 2 — agrégation de toutes les tâches                        */
+  /* ------------------------------------------------------------------ */
+  const toutesLesTaches: TacheResume[] = [];
+  (cultes ?? []).forEach((c) => {
+    (c.taches ?? []).forEach((t) => {
+      toutesLesTaches.push({ ...t, culteId: c.id, culteIntitule: c.intitule });
+    });
+  });
+
+  const compteurs = {
+    A_FAIRE: toutesLesTaches.filter((t) => t.statut === "A_FAIRE").length,
+    EN_COURS: toutesLesTaches.filter((t) => t.statut === "EN_COURS").length,
+    CLOTUREE: toutesLesTaches.filter((t) => t.statut === "CLOTUREE").length,
+  };
+
+  const totalTaches = toutesLesTaches.length;
+
+  const tachesFiltrees =
+    filtreStatut === "TOUS"
+      ? toutesLesTaches
+      : toutesLesTaches.filter((t) => t.statut === filtreStatut);
+
+  /* ------------------------------------------------------------------ */
+  /*  Regroupement des tâches d'un événement par jour                   */
+  /* ------------------------------------------------------------------ */
+  const groupesTachesParJour = (culte: CulteResume) => {
+    const groupes = new Map<string, TacheResume[]>();
+    (culte.taches ?? []).forEach((t) => {
+      const date = t.dateTache ?? culte.dateISO;
+      if (!groupes.has(date)) groupes.set(date, []);
+      groupes.get(date)!.push(t);
+    });
+    return [...groupes.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, taches]) => ({
+        date,
+        label: new Date(date).toLocaleDateString("fr-FR", {
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        }),
+        taches: [...taches].sort(
+          (a, b) => (a.heureDebut ?? "").localeCompare(b.heureDebut ?? ""),
+        ),
+      }));
+  };
+
+  /* ------------------------------------------------------------------ */
+  /*  Onglet 3 — gestion des types de tâches                            */
+  /* ------------------------------------------------------------------ */
+  const [typesLocaux, setTypesLocaux] = useState<TypeTacheResume[]>(
+    typesTache ?? [],
+  );
+  const [nouveauTypeLibelle, setNouveauTypeLibelle] = useState("");
+  const [nouveauTypeCouleur, setNouveauTypeCouleur] = useState("#3b82f6");
+  const [nouveauTypeEstParDefaut, setNouveauTypeEstParDefaut] = useState(false);
+  const [modifTypeId, setModifTypeId] = useState<string | null>(null);
+  const [modifTypeLibelle, setModifTypeLibelle] = useState("");
+  const [modifTypeCouleur, setModifTypeCouleur] = useState("");
+  const [messageType, setMessageType] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  const afficherMessage = useCallback(
+    (text: string, type: "success" | "error") => {
+      setMessageType({ text, type });
+      setTimeout(() => setMessageType(null), 4000);
+    },
+    [],
+  );
+
+  const handleChangerStatut = async (
+    tacheId: string,
+    nouveauStatut: StatutTache,
+  ) => {
+    const formData = new FormData();
+    formData.append("tacheId", tacheId);
+    formData.append("statut", nouveauStatut);
+    try {
+      const res = await changerStatutTache(
+        { success: false, message: "", fieldErrors: {} },
+        formData,
+      );
+      if (res.success) {
+        afficherMessage(
+          `Tâche passée en "${STATUT_LABELS[nouveauStatut]}"`,
+          "success",
+        );
+      } else {
+        afficherMessage(
+          res.message || "Erreur lors du changement de statut",
+          "error",
+        );
+      }
+    } catch (e) {
+      afficherMessage("Erreur serveur lors du changement de statut", "error");
+    }
+  };
+
+  const handleCreerType = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    formData.append("action", "create");
+    formData.append("libelle", nouveauTypeLibelle);
+    formData.append("couleur", nouveauTypeCouleur);
+    formData.append(
+      "estParDefaut",
+      nouveauTypeEstParDefaut ? "true" : "false",
+    );
+    try {
+      const res = await gererTypesTache(
+        { success: false, message: "", fieldErrors: {} },
+        formData,
+      );
+      if (res.success) {
+        setNouveauTypeLibelle("");
+        setNouveauTypeEstParDefaut(false);
+        afficherMessage("Type de tâche créé", "success");
+        const formList = new FormData();
+        formList.append("action", "list");
+        const resList = await gererTypesTache(
+          { success: false, message: "", fieldErrors: {} },
+          formList,
+        );
+        if (resList.success && resList.types) {
+          setTypesLocaux(resList.types);
+        }
+      } else {
+        afficherMessage(
+          res.message || "Erreur lors de la création",
+          "error",
+        );
+      }
+    } catch (e) {
+      afficherMessage("Erreur serveur lors de la création", "error");
+    }
+  };
+
+  const handleSupprimerType = async (typeId: string) => {
+    if (!window.confirm("Supprimer ce type de tâche ?")) return;
+    const formData = new FormData();
+    formData.append("action", "delete");
+    formData.append("id", typeId);
+    try {
+      const res = await gererTypesTache(
+        { success: false, message: "", fieldErrors: {} },
+        formData,
+      );
+      if (res.success) {
+        setTypesLocaux((prev) => prev.filter((t) => t.id !== typeId));
+        afficherMessage("Type de tâche supprimé", "success");
+      } else {
+        afficherMessage(
+          res.message || "Suppression impossible",
+          "error",
+        );
+      }
+    } catch (e) {
+      afficherMessage(
+        "Erreur serveur lors de la suppression",
+        "error",
+      );
+    }
+  };
+const handleSupprimerCulte = async (id: string) => {
+    if (!window.confirm("Supprimer cet événement ?")) return;
+    const formData = new FormData();
+    formData.set("id", id);
+    try {
+      const res = await supprimerCulte(
+        {} as const,
+        formData,
+      );
+      if (res.success) {
+        afficherMessage("Événement supprimé", "success");
+      } else {
+        afficherMessage(res.message || "Suppression impossible", "error");
+      }
+    } catch (e) {
+      afficherMessage("Erreur serveur lors de la suppression", "error");
+    }
+  };
+
+  const handleEditerType = (t: TypeTacheResume) => {
+    setModifTypeId(t.id);
+    setModifTypeLibelle(t.libelle);
+    setModifTypeCouleur(t.couleur ?? "");
+  };
+
+  const annulerModifType = () => {
+    setModifTypeId(null);
+    setModifTypeLibelle("");
+    setModifTypeCouleur("");
+  };
+
+  const handleValiderModifType = async () => {
+    if (!modifTypeId || !modifTypeLibelle.trim()) return;
+    const formData = new FormData();
+    formData.append("action", "update");
+    formData.append("id", modifTypeId);
+    formData.append("libelle", modifTypeLibelle.trim());
+    formData.append("couleur", modifTypeCouleur);
+    try {
+      const res = await gererTypesTache(
+        { success: false, message: "", fieldErrors: {} },
+        formData,
+      );
+      if (res.success) {
+        setModifTypeId(null);
+        setModifTypeLibelle("");
+        setModifTypeCouleur("");
+        afficherMessage("Type de tâche mis à jour", "success");
+        // Rafraîchir la liste
+        const formList = new FormData();
+        formList.append("action", "list");
+        const resList = await gererTypesTache(
+          { success: false, message: "", fieldErrors: {} },
+          formList,
+        );
+        if (resList.success && resList.types) {
+          setTypesLocaux(resList.types);
+        }
+      } else {
+        afficherMessage(res.message || "Erreur lors de la mise à jour", "error");
+      }
+    } catch (e) {
+      afficherMessage("Erreur serveur lors de la mise à jour", "error");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 rounded-xl bg-card p-1 border border-card-border">
+          <button type="button" onClick={() => setOnglet("CALENDRIER")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${onglet === "CALENDRIER" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground"}`}>
+            <Calendar className="h-4 w-4" /> Calendrier & Événements
+          </button>
+          <button type="button" onClick={() => setOnglet("TACHES")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${onglet === "TACHES" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground"}`}>
+            <ListChecks className="h-4 w-4" /> Tâches & Déroulé
+          </button>
+          <button type="button" onClick={() => setOnglet("CONFIGURATION")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${onglet === "CONFIGURATION" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground"}`}>
+            <Settings className="h-4 w-4" /> Configuration
+          </button>
+        </div>
+        <button type="button" onClick={() => setModalCulteOuvert(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+          <Plus className="h-4 w-4" /> Programmer un événement
+        </button>
+      </div>
+
+      {onglet === "CALENDRIER" && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {(cultes ?? []).length === 0 ? (
+            <div className="col-span-full rounded-xl border border-dashed border-card-border p-8 text-center">
+              <p className="text-muted-foreground text-sm">Aucun événement programmé</p>
+              <button
+                type="button"
+                onClick={() => setModalCulteOuvert(true)}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Créer un événement
+              </button>
+            </div>
+          ) : (
+            (cultes ?? []).map((culte) => (
+              <div key={culte.id} className="rounded-xl border border-card-border bg-card p-5 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground text-lg">{culte.intitule}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {culte.dateISO ? new Date(culte.dateISO).toLocaleDateString("fr-FR") : "Sans date"}
+                      {culte.dateFin && ` au ${new Date(culte.dateFin).toLocaleDateString("fr-FR")}`}
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium px-2 py-1 rounded bg-accent text-accent-foreground">{culte.type ?? "ÉVÉNEMENT"}</span>
+                </div>
+                {culte.lieu && <p className="text-sm text-muted-foreground">📍 {culte.lieu}</p>}
+                {culte.responsable && (
+                  <p className="text-sm text-muted-foreground">
+                    👤 Responsable général : {culte.responsable.nomComplet}
+                  </p>
+                )}
+                <div className="pt-2 border-t border-card-border flex items-center justify-between gap-2">
+                  <button type="button" onClick={() => setModalTacheCulteId(culte.id)} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                    <Plus className="h-3.5 w-3.5" /> Tâche
+                  </button>
+                  <button type="button" onClick={() => setPdfCulteId(culte.id)} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                    <Printer className="h-3.5 w-3.5" /> Aperçu & Contrôle
+                  </button>
+<button type="button" onClick={() => setModalCulteOuvert(true)} className="flex items-center gap-1.5 text-xs font-medium text-secondary hover:underline">
+                     <Edit2 className="h-3.5 w-3.5" /> Modifier
+                   </button>
+                   <button type="button" onClick={() => handleSupprimerCulte(culte.id)} className="flex items-center gap-1.5 text-xs font-medium text-destructive hover:underline">
+                     <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                   </button>
+                </div>
+                {culte.taches && culte.taches.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Tâches par jour
+                    </p>
+                    {groupesTachesParJour(culte).map((g) => (
+                      <div key={g.date} className="rounded-lg border border-card-border/50 bg-muted/30 p-2">
+                        <div className="text-xs font-medium text-foreground mb-1">{g.label}</div>
+                        <ul className="space-y-1">
+                          {g.taches.map((t) => (
+                            <li
+                              key={t.id}
+                              className="flex items-center justify-between gap-2 px-2 py-1 text-xs rounded hover:bg-card/50 cursor-pointer"
+                            >
+                              <span className="flex-1 truncate">
+                                {t.titre}
+                                {t.heureDebut &&
+                                  ` — ${t.heureDebut}${t.heureFin ? ` - ${t.heureFin}` : ""}`}
+                              </span>
+                              <span
+                                className={`text-xs font-medium px-1.5 py-0.5 rounded border ${STATUT_COLORS[t.statut] || "bg-muted text-muted-foreground"}`}
+                              >
+                                {STATUT_LABELS[t.statut]}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {onglet === "TACHES" && (
+        <div className="rounded-xl border border-card-border bg-card p-6">
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
+              Vue d'ensemble des Tâches
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Toutes les tâches de tous les événements — changez le statut en 1 clic.
+            </p>
+          </div>
+
+          {/* Compteurs dynamiques */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="rounded-xl border border-card-border bg-card p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase font-semibold">À faire</p>
+                <p className="text-2xl font-bold text-foreground">{compteurs.A_FAIRE}</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                <Play className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-card-border bg-card p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase font-semibold">En cours</p>
+                <p className="text-2xl font-bold text-foreground">{compteurs.EN_COURS}</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <Pause className="h-5 w-5 text-amber-800" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-card-border bg-card p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase font-semibold">Clôturée</p>
+                <p className="text-2xl font-bold text-foreground">{compteurs.CLOTUREE}</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-emerald-800" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-card-border bg-card p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase font-semibold">Total</p>
+                <p className="text-2xl font-bold text-foreground">{totalTaches}</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <ListChecks className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          </div>
+
+          {/* Barre de filtres rapides */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setFiltreStatut("TOUS")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                filtreStatut === "TOUS"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-card-border text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              Tous ({totalTaches})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltreStatut("A_FAIRE")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                filtreStatut === "A_FAIRE"
+                  ? "bg-muted text-muted-foreground border-muted"
+                  : "border-card-border text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              À faire ({compteurs.A_FAIRE})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltreStatut("EN_COURS")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                filtreStatut === "EN_COURS"
+                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                  : "border-card-border text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              En cours ({compteurs.EN_COURS})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltreStatut("CLOTUREE")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                filtreStatut === "CLOTUREE"
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                  : "border-card-border text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              Clôturées ({compteurs.CLOTUREE})
+            </button>
+          </div>
+
+          {/* Cartes de tâches interactives */}
+          {(tachesFiltrees.length === 0) ? (
+            <div className="rounded-xl border border-dashed border-card-border p-8 text-center">
+              <p className="text-muted-foreground text-sm">Aucune tâche enregistrée</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {tachesFiltrees.map((tache) => (
+                <div
+                  key={tache.id}
+                  className={`rounded-xl border border-card-border bg-card p-4 flex items-center justify-between gap-4 hover:bg-accent/50 transition-colors cursor-pointer group`}
+                  onClick={() => {
+                    const next =
+                      tache.statut === "A_FAIRE"
+                        ? "EN_COURS"
+                        : tache.statut === "EN_COURS"
+                          ? "CLOTUREE"
+                          : "A_FAIRE";
+                    handleChangerStatut(tache.id, next);
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded border ${STATUT_COLORS[tache.statut] || "bg-muted text-muted-foreground"}`}
+                      >
+                        {STATUT_LABELS[tache.statut]}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {tache.culteIntitule}
+                      </span>
+                    </div>
+                    <h4 className="font-medium text-foreground truncate">
+                      {tache.titre}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {tache.heureDebut &&
+                        `🕒 ${tache.heureDebut}${tache.heureFin ? ` - ${tache.heureFin}` : ""}`}
+                      {tache.responsable && (
+                        <span className="mt-0.5 block">👤 {tache.responsable.nomComplet}</span>
+                      )}
+                      {tache.equipe && tache.equipe.length > 0 && (
+                        <span className="mt-0.5 block">
+                          👥 Équipe : {tache.equipe.map((m) => m.nomComplet).join(", ")}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalTacheCulteId(tache.culteId);
+                    }}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {onglet === "CONFIGURATION" && (
+        <div className="rounded-xl border border-card-border bg-card p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                Types de tâches personnalisés
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Ajoutez, renommez ou supprimez des types de tâches (ex: Distribution de nourriture, Protocoles, etc.)
+              </p>
+            </div>
+          </div>
+
+          {messageType && (
+            <div
+              className={`rounded-lg p-3 text-sm flex items-center gap-3 ${
+                messageType.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-100"
+                  : "bg-red-50 text-red-800 border border-red-100"
+              }`}
+            >
+              {messageType.type === "success" ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
+              {messageType.text}
+            </div>
+          )}
+
+          {/* Liste des types existants */}
+          <div className="space-y-3">
+            {typesLocaux.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Aucun type de tâche configuré.
+              </p>
+            ) : (
+              typesLocaux.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-card-border bg-background p-3"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${t.couleur ? `bg-[${t.couleur}]` : "bg-primary"}`}
+                    />
+                    <span className="font-medium text-foreground truncate">
+                      {t.libelle}
+                    </span>
+                    {t.estParDefaut && (
+                      <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
+                        Par défaut
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {modifTypeId === t.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          defaultValue={modifTypeLibelle}
+                          className="w-32 border border-card-border rounded px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          onChange={(e) => setModifTypeLibelle(e.target.value)}
+                        />
+                        <input
+                          type="color"
+                          defaultValue={modifTypeCouleur || "#3b82f6"}
+                          className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+                          onChange={(e) => setModifTypeCouleur(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleValiderModifType}
+                          disabled={!modifTypeLibelle.trim()}
+                          className="px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          OK
+                        </button>
+                        <button
+                          type="button"
+                          onClick={annulerModifType}
+                          className="px-3 py-1.5 rounded text-muted-foreground hover:bg-accent hover:text-foreground text-xs"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleEditerType(t)}
+                          className="p-1.5 text-muted-foreground hover:text-primary hover:bg-accent/50 rounded"
+                          title="Renommer"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSupprimerType(t.id)}
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-red-50/50 rounded"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Formulaire d'ajout */}
+          <form onSubmit={handleCreerType} className="rounded-xl border border-dashed border-card-border bg-background p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-xs font-medium text-foreground">
+                  Libellé du nouveau type *
+                </label>
+                <input
+                  type="text"
+                  value={nouveauTypeLibelle}
+                  onChange={(e) => setNouveauTypeLibelle(e.target.value)}
+                  placeholder="Ex: Distribution de nourriture"
+                  className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-foreground">
+                  Couleur
+                </label>
+                <input
+                  type="color"
+                  value={nouveauTypeCouleur}
+                  onChange={(e) => setNouveauTypeCouleur(e.target.value)}
+                  className="w-10 h-10 rounded border-none p-0 cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={nouveauTypeEstParDefaut}
+                  onChange={(e) => setNouveauTypeEstParDefaut(e.target.checked)}
+                  className="rounded border-card-border text-primary focus:ring-primary"
+                />
+                <label className="text-xs text-muted-foreground cursor-pointer">
+                  Type par défaut
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={!nouveauTypeLibelle.trim()}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Ajouter le type
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {modalCulteOuvert && <CulteFormModal membres={membres} onClose={() => setModalCulteOuvert(false)} />}
+      {cultePourTache && (
+        <TacheFormModal
+          culteId={cultePourTache.id}
+          culteIntitule={cultePourTache.intitule}
+          culteDateDebut={cultePourTache.dateISO}
+          culteDateFin={cultePourTache.dateFin}
+          membres={membres}
+          typesTache={typesTache}
+          onClose={() => setModalTacheCulteId(null)}
+        />
+      )}
+      {cultePourPdf && <ProgrammePdfModal culte={cultePourPdf} onClose={() => setPdfCulteId(null)} onEdit={() => setModalCulteOuvert(true)} onDelete={() => handleSupprimerCulte(cultePourPdf.id)} />}
+    </div>
+  );
+}

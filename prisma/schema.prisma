@@ -110,10 +110,31 @@ enum StatutEvenement {
   ANNULE
 }
 
+enum TypeEvenement {
+  OPTIONNEL
+  RESPONSABILISE
+}
+
 enum StatutTache {
   A_FAIRE
   EN_COURS
   CLOTUREE
+}
+
+// ---------------------------------------------------------------------------
+// Types de tâches configurables (ex: Prédication, Louange, Distribution de nourriture…)
+// ---------------------------------------------------------------------------
+model TypeTache {
+  id          String   @id @default(cuid())
+  libelle     String   @unique // ex: "Prédication", "Distribution de nourriture"
+  couleur     String?  @default("#6366f1") // code hex pour badge UI
+  estParDefaut Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  taches      TacheEvenement[]
+
+  @@index([estParDefaut])
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +180,7 @@ model Membre {
   depensesRecues Depense[]
   mouvementsCaisse MouvementCaisse[]
   tachesAssignees TacheEvenement[] @relation("TacheResponsable")
+  cultesDiriges Culte[] @relation("CulteResponsable")
 }
 
 model Exercice {
@@ -238,21 +260,26 @@ model AideDistribution {
 }
 
 model Culte {
-  id                String          @id @default(cuid())
-  date              DateTime @unique
-  intitule          String
-  lieu              String?
-  description       String?
-  statut            StatutEvenement @default(PLANIFIE)
-  totalQueteAnonyme Decimal  @default(0) @db.Decimal(12, 2)
+  id                  String       @id @default(cuid())
+  date                DateTime
+  dateFin             DateTime?    // Fin d'événement pour événements multi-jours
+  heureDebut          String?      // Plage horaire de début, ex: "08:30"
+  heureFin            String?      // Plage horaire de fin, ex: "11:30"
+  intitule            String
+  lieu                String?
+  description         String?
+  theme               String?
+  descriptionTheme    String?   @db.Text
+  type                String?
+  statut              String?
+  responsableMembreId String?
+  responsable         Membre?      @relation("CulteResponsable", fields: [responsableMembreId], references: [id])
+  totalQueteAnonyme   Decimal      @default(0)
 
-  taches TacheEvenement[]
+  taches              TacheEvenement[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
-  @@index([date])
-  @@index([statut])
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 }
 
 model TacheEvenement {
@@ -261,10 +288,16 @@ model TacheEvenement {
   titre               String
   description         String?
   statut              StatutTache  @default(A_FAIRE)
+  heureDebut          String?      // ex: "09:00"
+  heureFin            String?      // ex: "09:30"
+  dateTache           DateTime?    // Date associée à la tâche pour événements plurijournaliers
   responsableMembreId String?
+  typeTacheId         String?
+  membresEquipe       String[]     @default([])
 
   culte       Culte  @relation(fields: [culteId], references: [id], onDelete: Cascade)
   responsable Membre? @relation("TacheResponsable", fields: [responsableMembreId], references: [id], onDelete: SetNull)
+  typeTache   TypeTache? @relation(fields: [typeTacheId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -272,6 +305,7 @@ model TacheEvenement {
   @@index([culteId])
   @@index([statut])
   @@index([responsableMembreId])
+  @@index([typeTacheId])
 }
 
 model Cotisation {
@@ -548,4 +582,18 @@ model BienPatrimoine {
   @@index([categorie])
   @@index([etat])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Paramètres de l'église (coordonnées, identité, exercice, devise…).
+// Stockage fonctionnel actuel : fichier `data/configuration-eglise.json`
+// (voir src/lib/configuration-eglise.ts). Ce modèle Prisma documente la
+// structure cible en base de données.
+// ---------------------------------------------------------------------------
+model ParametresEglise {
+  id        String   @id @default(cuid())
+  telephone String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

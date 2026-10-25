@@ -42,7 +42,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://*.global.ssl.fastly.net https://server.arcgisonline.com; font-src 'self'; connect-src 'self'; frame-src https://tile.openstreetmap.org https://*.tile.openstreetmap.org; child-src https://tile.openstreetmap.org https://*.tile.openstreetmap.org; frame-ancestors 'self'; base-uri 'self'; form-action 'self';",
           },
         ],
       },

@@ -1,11 +1,22 @@
 "use client";
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { Eye, Search } from "lucide-react";
+import { Eye, FileText, Search } from "lucide-react";
 import FichePastoraleMembreModal from "@/components/solidarite/FichePastoraleMembreModal";
+import RapportModal from "@/components/solidarite/RapportModal";
 import { formatMontant } from "@/lib/membre";
-import type { FichePastoraleMembre, RegistrePastoralLigne } from "@/types/solidarite";
-type Props = { lignes: RegistrePastoralLigne[]; fiches: FichePastoraleMembre[]; };
+import type { Exercice } from "@/generated/prisma/client";
+import type {
+  FichePastoraleMembre,
+  MembreOption,
+  RegistrePastoralLigne,
+} from "@/types/solidarite";
+type Props = {
+  lignes: RegistrePastoralLigne[];
+  fiches: FichePastoraleMembre[];
+  exercices: Exercice[];
+  membres: MembreOption[];
+};
 const BADGES: Record<string, string> = {
 DONATEUR: "bg-emerald-500/15 text-emerald-400",
 ASSISTE: "bg-amber-500/15 text-amber-300",
@@ -18,14 +29,27 @@ ASSISTE: "Assiste",
 DONATEUR_ASSISTE: "Donateur et Assiste",
 NOUVEAU: "Nouveau",
 };
-export default function RegistrePastoralTable({ lignes, fiches }: Props) {
+export default function RegistrePastoralTable({ lignes, fiches, membres, exercices }: Props) {
 const [recherche, setRecherche] = useState("");
+const [openRapport, setOpenRapport] = useState(false);
+  const [membreRapport, setMembreRapport] = useState<{
+    id: string;
+    nom: string;
+    prenoms: string;
+    telephone: string;
+  } | null>(null);
 const [ficheId, setFicheId] = useState<string | null>(null);
 const filtrees = useMemo(() => {
 const q = recherche.trim().toLowerCase();
 if (!q) return lignes;
 return lignes.filter((l) => `${l.prenoms} ${l.nom}`.toLowerCase().includes(q) || l.telephone.includes(q));
 }, [lignes, recherche]);
+
+      const ouvrirRapport = (id: string, nom: string, prenoms: string, telephone: string) => {
+        setFicheId(id);
+        setMembreRapport({ id, nom, prenoms, telephone });
+        setOpenRapport(true);
+      };
 const fiche = useMemo(() => fiches.find((f) => f.id === ficheId) ?? null, [fiches, ficheId]);
 return (
 <div className="flex flex-col gap-4">
@@ -53,7 +77,18 @@ return (
 <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-foreground">{formatMontant(ligne.totalContributions)} FCFA</td>
 <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-foreground">{formatMontant(ligne.totalAides)} FCFA</td>
 <td className="px-5 py-3"><span className={clsx("inline-flex rounded-full px-2.5 py-1 text-xs font-medium", BADGES[ligne.statut])}>{LIBELLES[ligne.statut]}</span></td>
-<td className="px-5 py-3 text-right"><button type="button" onClick={(e) => { e.stopPropagation(); setFicheId(ligne.id); }} className="inline-flex items-center gap-1.5 rounded-lg border border-card-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"><Eye className="h-3.5 w-3.5" aria-hidden />Fiche detaillee</button></td>
+<td className="px-5 py-3 text-right">
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      ouvrirRapport(ligne.id, ligne.nom, ligne.prenoms, ligne.telephone);
+    }}
+    className="inline-flex items-center gap-1.5 rounded-lg border border-secondary/50 bg-secondary/50 px-3 py-1.5 text-xs font-medium text-secondary hover:bg-secondary/100 hover:text-secondary"
+  >
+    <FileText className="h-3.5 w-3.5" aria-hidden />Rapport
+  </button>
+</td>
 </tr>
 ))}
 {filtrees.length === 0 && (
@@ -63,6 +98,15 @@ return (
 </table>
 </div>
 <FichePastoraleMembreModal fiche={fiche} onFermer={() => setFicheId(null)} />
+      <RapportModal
+        open={openRapport}
+        membres={membres ?? []}
+        membrePreselectionne={membreRapport}
+        modeInitial="exercice"
+        exerciceIdInitial={null}
+        exercices={exercices ?? []}
+        onFermer={() => setOpenRapport(false)}
+      />
 </div>
 );
 }

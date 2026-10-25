@@ -103,3 +103,47 @@ export type FichePastoraleMembre = {
   participations: ParticipationMembreLigne[];
   aidesPercues: AidePercueLigne[];
 };
+
+/** Statut de récurrence d'une cotisation versée. */
+export type StatutRecurrence = "RECURRENT" | "PONCTUEL";
+
+/** Ligne détaillée d'une cotisation versée (tableau des versements). */
+export type RapportCotisationLigne = {
+  id: string;
+  typeCotisation: string;
+  dateISO: string;
+  dateAffichee: string;
+  montant: number;
+  statut: StatutRecurrence;
+  modePaiement: string | null;
+};
+
+/** Ligne détaillée d'une aide / soutien perçu (tableau des aides). */
+export type RapportAideLigne = {
+  id: string;
+  typeAide: string;
+  dateISO: string;
+  dateAffichee: string;
+  montant: number;
+  numeroPiece: string | null;
+};
+
+/** Synthèse financière d'un rapport membre. */
+export type RapportSynthese = {
+  totalVersements: number;
+  totalAides: number;
+  nbVersements: number;
+  nbAides: number;
+  moyenneVersement: number;
+  moyenneAide: number;
+};
+
+/** Données complètes d'un rapport membre (exercice ou historique global). */
+export type RapportMembreDonnees = {
+  membre: { id: string; nom: string; prenoms: string; telephone: string };
+  exerciceLibelle: string;
+  historique: boolean;
+  cotisations: RapportCotisationLigne[];
+  aides: RapportAideLigne[];
+  synthese: RapportSynthese;
+};

@@ -16,7 +16,9 @@ import {
 import ActionsLienReleve from "@/components/membres/ActionsLienReleve";
 import MembreFormModal from "@/components/membres/MembreFormModal";
 import PhotoPreview from "@/components/membres/PhotoPreview";
+import SupprimerMembreButton from "@/components/membres/SupprimerMembreButton";
 import { formatDateISO, parseDonneesEcclesiastiques } from "@/lib/membre";
+import { lireConfiguration } from "@/lib/configuration-eglise";
 import { prisma } from "@/lib/prisma";
 import type { FicheMembre, MembreEditable } from "@/types/membre";
 import { libelleRole } from "@/types/organisation";
@@ -102,6 +104,15 @@ export default async function FicheMembrePage({ params }: Props) {
   const donnees = parseDonneesEcclesiastiques(membre.donneesEcclesiastiques);
   const initiales = `${membre.prenoms.charAt(0)}${membre.nom.charAt(0)}`.toUpperCase();
 
+  // Localisation GPS de l'église pour le calcul de distance pastorale.
+  let localisationGpsEglise: string | null = null;
+  try {
+    const config = await lireConfiguration();
+    localisationGpsEglise = config.localisationGps || null;
+  } catch {
+    localisationGpsEglise = null;
+  }
+
   // Lien public du relevé annuel (jeton unique par membre) — partageable via
   // « Copier le lien » et ouvrable directement depuis la fiche.
   const urlReleve = `/releve/${membre.tokenConsultation}`;
@@ -154,9 +165,13 @@ export default async function FicheMembrePage({ params }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          <MembreFormModal membre={modifiable} triggerLabel="Modifier la fiche" variant="secondary" />
+        <div className="flex w-full flex-col items-start gap-3 sm:w-64 sm:items-end">
+          <MembreFormModal membre={modifiable} triggerLabel="Modifier la fiche" variant="secondary" localisationGpsEglise={localisationGpsEglise} />
           <ActionsLienReleve membreId={membre.id} urlReleve={urlReleve} />
+          <SupprimerMembreButton
+            membreId={membre.id}
+            nomComplet={`${membre.nom} ${membre.prenoms}`}
+          />
         </div>
       </header>
 

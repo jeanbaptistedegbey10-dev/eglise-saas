@@ -19,10 +19,12 @@ export default async function PageConnexion({ searchParams }: Props) {
     <EcranAuth
       titre="Connexion"
       sousTitre="Accédez à votre espace de gestion."
+      theme="sky-orange"
     >
       <FormulaireConnexion
         callbackUrl={params.callbackUrl}
         info={params.message}
+        variant="orange"
       />
     </EcranAuth>
   );

@@ -8,7 +8,8 @@ import { useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
 
 import {
-  PHOTO_DIMENSION_MAX,
+  PHOTO_CARRE_COTE,
+  PHOTO_QUALITE_JPEG,
   PHOTO_TAILLE_SOURCE_MAX,
   PHOTO_TYPES_AUTORISES,
   redimensionnerPhoto,
@@ -52,7 +53,46 @@ export default function PhotoUploader({
   const [supprime, setSupprime] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const choisirFichier = async (fichier?: File | null) => {
+const COTE_PHOTO = 160;
+
+/**
+ * Lit le fichier avec un FileReader, le dessine via `Image()` dans un canvas
+ * carré centré de 160×160 px, puis l'exporte en JPEG (q = 0.5) → base64 (~6-8 Ko).
+ */
+async function lireEtEncoder(fichier: File): Promise<string | null> {
+  const dataUrl = await lireDataUrl(fichier);
+  const image = await chargerImageDepuisDataUrl(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = COTE_PHOTO;
+  canvas.height = COTE_PHOTO;
+  const contexte = canvas.getContext("2d");
+  if (!contexte) return null;
+  contexte.fillStyle = "#ffffff";
+  contexte.fillRect(0, 0, COTE_PHOTO, COTE_PHOTO);
+  const echelle = Math.max(COTE_PHOTO / image.width, COTE_PHOTO / image.height);
+  const largeur = image.width * echelle;
+  const hauteur = image.height * echelle;
+  contexte.drawImage(image, (COTE_PHOTO - largeur) / 2, (COTE_PHOTO - hauteur) / 2, largeur, hauteur);
+  return canvas.toDataURL("image/jpeg", 0.5);
+}
+function lireDataUrl(fichier: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onload = () => resolve(typeof lecteur.result === "string" ? lecteur.result : "");
+    lecteur.onerror = () => reject(new Error("Échec de la lecture du fichier."));
+    lecteur.onabort = () => reject(new Error("Lecture du fichier interrompue."));
+    lecteur.readAsDataURL(fichier);
+  });
+}
+function chargerImageDepuisDataUrl(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Impossible de décoder l'image sélectionnée."));
+    image.src = dataUrl;
+  });
+}
+  const handlePhotoChange = async (fichier?: File | null) => {
     if (!fichier) return;
     if (!PHOTO_TYPES_AUTORISES.includes(fichier.type)) {
       setErreurLocale("Format non pris en charge : utilisez un PNG, JPG ou WEBP.");
@@ -66,14 +106,14 @@ export default function PhotoUploader({
     setEnCours(true);
     setErreurLocale(null);
     try {
-      const dataUrl = await redimensionnerPhoto(fichier);
+      const dataUrl = await lireEtEncoder(fichier);
       if (!dataUrl) {
-        setErreurLocale("Impossible de lire l'image sélectionnée.");
+        throw new Error("L'image sélectionnée n'a pas pu être décodée.");
         return;
       }
       const erreurFormat = validerPhotoDataUrl(dataUrl);
       if (erreurFormat) {
-        setErreurLocale(erreurFormat);
+        throw new Error(erreurFormat);
         return;
       }
       setApercu(dataUrl);
@@ -81,7 +121,7 @@ export default function PhotoUploader({
       setModifie(true);
       setSupprime(false);
     } catch {
-      setErreurLocale("Impossible de traiter l'image sélectionnée.");
+      setErreurLocale("La photo n'a pas pu être lue. Veuillez réessayer avec une autre image.");
     } finally {
       setEnCours(false);
     }
@@ -106,7 +146,7 @@ export default function PhotoUploader({
           data URL existante à chaque enregistrement de la fiche. */}
       {modifie && (
         <>
-          <input type="hidden" name="photoDataUrl" value={apercu ?? ""} />
+          <input type="hidden" name="photoUrl" value={apercu ?? ""} />
           <input type="hidden" name="photoModifiee" value="on" />
         </>
       )}
@@ -143,7 +183,7 @@ export default function PhotoUploader({
                 accept={PHOTO_TYPES_AUTORISES.join(",")}
                 className="sr-only"
                 disabled={enCours}
-                onChange={(event) => void choisirFichier(event.target.files?.[0])}
+                onChange={(event) => void handlePhotoChange(event.target.files?.[0])}
               />
             </label>
 
@@ -160,9 +200,9 @@ export default function PhotoUploader({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Formats acceptés : PNG, JPG, WEBP — 5 Mo maximum. L&apos;image est réduite
-            automatiquement à {PHOTO_DIMENSION_MAX} pixels de côté maximum avant
-            d&apos;être enregistrée.
+            Formats acceptés : PNG, JPG, WEBP — 5 Mo maximum. L&apos;image est
+            recadrée en carré centré ({PHOTO_CARRE_COTE}×{PHOTO_CARRE_COTE} px) et
+            compressée en JPEG (~6-8 Ko) avant enregistrement.
           </p>
 
           <p className="text-xs" aria-live="polite">

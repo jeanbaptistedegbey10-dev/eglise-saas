@@ -5,6 +5,7 @@ import MembreFormModal from "@/components/membres/MembreFormModal";
 import ExportCSVBouton from "@/components/commun/ExportCSVBouton";
 import { determinerClasseAge } from "@/lib/cotisation";
 import { parseDonneesEcclesiastiques } from "@/lib/membre";
+import { lireConfiguration } from "@/lib/configuration-eglise";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -19,6 +20,14 @@ export const dynamic = "force-dynamic";
 export default async function MembresPage() {
   let items: MembreFiltreItem[] = [];
   let erreurBase: string | null = null;
+  let localisationGpsEglise: string | null = null;
+
+  try {
+    const config = await lireConfiguration();
+    localisationGpsEglise = config.localisationGps || null;
+  } catch {
+    localisationGpsEglise = null;
+  }
 
   try {
     const lignes = await prisma.membre.findMany({
@@ -106,7 +115,7 @@ export default async function MembresPage() {
           {!erreurBase && (
             <ExportCSVBouton base="membres" colonnes={colonnesCSV} lignes={lignesCSV} />
           )}
-          <MembreFormModal triggerLabel="Nouveau membre" />
+          <MembreFormModal triggerLabel="Nouveau membre" localisationGpsEglise={localisationGpsEglise} />
         </div>
       </header>
 

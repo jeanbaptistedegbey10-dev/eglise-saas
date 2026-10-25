@@ -1,66 +1,120 @@
 "use client";
-import { useEffect, useState, useActionState } from "react";
-import { useResetAuChangement } from "@/lib/use-reset-au-changement";
-import { useRouter } from "next/navigation";
-import clsx from "clsx";
-import { CalendarPlus, Check, CircleAlert, LoaderCircle, X } from "lucide-react";
+
+import { useState } from "react";
+import { X } from "lucide-react";
 import { enregistrerCulte } from "@/actions/culte";
-import { initialCulteFormState, type CulteResume } from "@/types/culte";
-const INPUT = "flex w-full rounded-lg border border-card-border bg-background px-3 h-10 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/40";
-export default function CulteFormModal({ triggerLabel, culte }: { triggerLabel?: string; culte?: CulteResume | null }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [etat, formAction, enCours] = useActionState(enregistrerCulte, initialCulteFormState);
-  useResetAuChangement(etat, () => {
-    if (etat.success) setOpen(false);
-  });
-  useEffect(() => {
-    if (etat.success) router.refresh();
-  }, [etat]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [open ]);
-  const err = (c: string) => etat.fieldErrors[c]?.[0];
+import { initialCulteFormState } from "@/types/culte";
+import type { CulteResume } from "@/types/culte";
+
+type MembreOption = { id: string; nomComplet: string; };
+type CulteFormModalProps = {
+  membres?: MembreOption[];
+  onClose?: () => void;
+  culte?: CulteResume | null;
+};
+
+export default function CulteFormModal({ membres = [], onClose = () => {}, culte = null }: CulteFormModalProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    if (culte?.id) {
+      formData.append("id", culte.id);
+    }
+    try {
+      await enregistrerCulte(initialCulteFormState, formData);
+      onClose();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} className={clsx("inline-flex items-center gap-2 rounded-xl text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring", culte ? "border border-card-border bg-card px-3 py-1.5 font-medium text-muted-foreground hover:bg-muted hover:text-foreground" : "bg-primary px-4 py-2.5 font-medium text-primary-foreground hover:bg-primary/90")}>
-        <CalendarPlus className="h-4 w-4" aria-hidden />{triggerLabel ?? (culte ? "Modifier" : "Programmer un événement")}
-      </button>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <button type="button" tabIndex={-1} aria-label="Fermer" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-card-border bg-card shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-card-border px-6 py-4">
-              <div><p className="text-xs font-medium uppercase tracking-wide text-accent">Événements</p>
-              <h2 className="text-lg font-semibold text-foreground">{culte ? "Modifier l'événement" : "Programmer un événement"}</h2></div>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-5 w-5" aria-hidden /></button>
-            </div>
-            <form action={formAction} className="flex flex-col gap-4 px-6 py-5">
-              {culte && <input type="hidden" name="id" defaultValue={culte.id} />}
-              {!etat.success && etat.message && (<div role="alert" className="flex gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /><span>{etat.message}</span></div>)}
-              <div className="flex flex-col gap-1.5"><label htmlFor="culte-date" className="text-sm font-medium text-foreground">Date<span className="ml-1 text-red-400">*</span></label>
-                <input id="culte-date" name="date" type="date" required defaultValue={culte?.dateISO ?? ""} className={clsx(INPUT, err("date") && "border-red-500/70")} />
-                {err("date") && <p className="text-xs text-red-400">{err("date")}</p>}</div>
-              <div className="flex flex-col gap-1.5"><label htmlFor="culte-intitule" className="text-sm font-medium text-foreground">Intitulé<span className="ml-1 text-red-400">*</span></label>
-                <input id="culte-intitule" name="intitule" type="text" maxLength={120} required defaultValue={culte?.intitule ?? ""} placeholder="Ex. Culte du dimanche matin" className={clsx(INPUT, err("intitule") && "border-red-500/70")} />
-                {err("intitule") && <p className="text-xs text-red-400">{err("intitule")}</p>}</div>
-              <div className="flex flex-col gap-1.5"><label htmlFor="culte-lieu" className="text-sm font-medium text-foreground">Lieu</label>
-                <input id="culte-lieu" name="lieu" type="text" maxLength={120} defaultValue={culte?.lieu ?? ""} placeholder="Ex. Temple principal" className={INPUT} /></div>
-              <div className="flex flex-col gap-1.5"><label htmlFor="culte-desc" className="text-sm font-medium text-foreground">Description</label>
-                <textarea id="culte-desc" name="description" rows={3} maxLength={1000} defaultValue={culte?.description ?? ""} placeholder="Déroulé, thème, consignes…" className="flex w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/40" /></div>
-              <div className="flex items-center justify-end gap-2 border-t border-card-border bg-muted/40 px-6 py-4 -mx-6 -mb-5">
-                <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Annuler</button>
-                <button type="submit" disabled={enCours} className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-                  {enCours ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}{enCours ? "…" : culte ? "Mettre à jour" : "Planifier"}</button>
-              </div>
-            </form>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="relative w-full max-w-lg rounded-2xl border border-card-border bg-card p-6 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between pb-4 border-b border-card-border">
+          <h2 className="text-xl font-bold text-foreground">{culte ? "Modifier l'événement" : "Programmer un événement"}</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      )}
-    </>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {culte?.id && <input type="hidden" name="id" defaultValue={culte.id} />}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Intitulé de l'événement *</label>
+            <input type="text" name="intitule" required defaultValue={culte?.intitule ?? ""} placeholder="Ex: Culte dominical, Vigile..." className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Date de début *</label>
+              <input type="date" name="date" required defaultValue={culte?.dateISO ?? ""} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Date de fin</label>
+              <input type="date" name="dateFin" defaultValue={culte?.dateFin ?? ""} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Heure de début</label>
+              <input type="time" name="heureDebut" defaultValue={culte?.heureDebut ?? ""} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Heure de fin</label>
+              <input type="time" name="heureFin" defaultValue={culte?.heureFin ?? ""} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Lieu</label>
+            <input type="text" name="lieu" defaultValue={culte?.lieu ?? ""} placeholder="Ex: Grand Temple" className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Description</label>
+            <textarea name="description" defaultValue={culte?.description ?? ""} placeholder="Ex: Culte avec partage de la Cène..." rows={3} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Thème du culte</label>
+            <input type="text" name="theme" defaultValue={culte?.theme ?? ""} placeholder="Ex: Grâce, Pardon, Espérance..." className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Description du thème / Verset biblique</label>
+            <textarea name="descriptionTheme" defaultValue={culte?.descriptionTheme ?? ""} placeholder="Ex: Jean 3:16 — Car Dieu a tant aimé le monde..." rows={3} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Type d'événement</label>
+              <select name="type" defaultValue={culte?.type ?? "OPTIONNEL"} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="OPTIONNEL">Optionnel</option>
+                <option value="RESPONSABILISE">Responsabilisé</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Statut</label>
+              <select name="statut" defaultValue={culte?.statut ?? "PLANIFIE"} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="PLANIFIE">Planifié</option>
+                <option value="TERMINE">Terminé</option>
+                <option value="ANNULE">Annulé</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Responsable général</label>
+            <select name="responsableMembreId" defaultValue={culte?.responsable?.id ?? ""} className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+              <option value="">— Non assigné —</option>
+              {(membres ?? []).map((m) => (<option key={m.id} value={m.id}>{m.nomComplet}</option>))}
+            </select>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-card-border">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-card-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground">Annuler</button>
+            <button type="submit" disabled={loading} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/95 disabled:opacity-50">{loading ? "Enregistrement..." : "Enregistrer"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

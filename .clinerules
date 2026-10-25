@@ -1,0 +1,93 @@
+# .clinerules — Église SaaS Project Rules
+
+## Purpose
+Preserve existing functional modules and enforce consistent conventions across refactoring and new feature development.
+
+---
+
+## 1. MODULES STABLES — INTERDICTION DE RÉÉCRITURE OU DÉGRADATION
+
+Les modules suivants sont considérés comme stabilisés et ne doivent pas être réécrits ni dégradés :
+
+- **Membres** (`src/components/membres`, `src/app/membres`) — Composants: `ListeMembres`, `MembreDetailTabs`, `MembreFormModal`, `PhotoUploader`, `PhotoPreview`, `SupprimerMembreButton`, `ActionsLienReleve`, `AdresseAutocompleteMap`
+- **Finances** (`src/components/finances`, `src/app/finances`) — Composants: `CotisationsListe`, `CotisationForm`, `DepensesListe`, `DepenseForm`, `DonsLibres`, `GestionCaisses`, `CarteCaisse`, `VersementCotisationForm`, `PaiementAnonymeForm`, `ExerciceFormModal`, `CotisationsRapports`, `CarteMetier`, `FinancesTypeTabs`, `BaremeConfigModal`, `TypeCotisationFormModal`, `SaisieRapideForm`
+- **Administration** (`src/components/administration`, `src/app/administration`) — Composants: `UtilisateursClient`, `GestionDonneesDemo`
+- **Layout global** (`src/components/layout`, `src/app/layout`) — Composants: `AppShell`, `Header`, `Sidebar`, `HeaderMobile`, `HeaderAlertes`, `HeaderNotifications`, `ThemeProviders`, `ThemeToggle`, `BlocSessionSidebar`, `ChatbotAide`
+
+**Règle :** Ne supprimer, renommer ni restructurer ces composants/fichiers sans motif critique. Tout changement doit conserver les props et les exports existants.
+
+---
+
+## 2. THÈME TAILWIND SOMBRE OBLIGATOIRE
+
+Toute nouvelle modification doit respecter le thème sombre global défini dans `src/app/globals.css` et `src/components/layout/ThemeProviders.tsx`.
+
+**Classes et variables CSS obligatoires :**
+- `bg-card`, `border-card-border`, `text-card-foreground`
+- Variables CSS du `:root` (mode clair) et `.dark` (mode sombre) — ne pas modifier les noms de variables suivantes : `--card`, `--border`, `--card-border`, `--foreground`, `--primary`, `--primary-foreground`, `--accent`, `--muted`, `--muted-foreground`
+- La classe `.dark` doit rester sur `<html>` (configurée dans `layout.tsx`)
+- Thème par défaut = `dark` (via `next-themes` `defaultTheme="dark"`)
+
+**Interdiction :** Changer les variables de thème ou remplacer les classes `bg-card`/`border-card-border`/`text-card-foreground` par des équivalents non prévus.
+
+---
+
+## 3. NAVIGATION ET COMPONENTS DE REFERENCE
+
+Les composants de navigation et leurs props de callback ne doivent pas être supprimés lors des refactorings.
+
+**Règles :**
+- Onglets de navigation (onglets dans `MembreDetailTabs`, `FinancesTypeTabs`, etc.) ne doivent pas être supprimés ni avoir leurs props supprimées.
+- Les props de callback des formulaires (Server Actions) ne doivent pas être supprimées ni renommées sans mise à jour correspondante des composants appelants.
+- La structure de la sidebar (`src/components/layout/Sidebar.tsx`) — `NAV_ITEMS` et la structure `NavItem` — ne doit pas être modifiée supprimeusement. Ajouts autorisés, suppressions interdites.
+- Les en-têtes (`Header.tsx`, `HeaderMobile.tsx`, `HeaderNotifications.tsx`) — leurs liens et structure ne doivent pas être supprimés.
+
+---
+
+## 4. EXPORTS DE COMPOSANTS ET TYPES TypeScript
+
+Toute modification doit respecter les exports TypeScript existants et ne pas générer de caractères d'échappement parasites (`\n`) dans les fichiers de sortie.
+
+**Règles :**
+- Les fichiers doivent exporter des types valides (via `export type`) et des fonctions/composants.
+- Aucun caractère `\n` parasite ne doit apparaître dans les chaînes de caractères générées ou les exports (notamment dans les formulaires Zod, types de State, et définitions de props).
+- Lors de l'ajout de nouveaux types, respecter le pattern existant : `export type XxxFormState = { success: boolean; fieldErrors: Record<string, string[]>; message?: string; }`
+- Les exports nommés doivent être cohérents avec les imports dans l'ensemble du projet (`@/components/...`, `@/lib/...`, `@/actions/...`).
+
+---
+
+## 5. ACTIONS SERVEUR (Server Actions)
+
+Les Server Actions existantes dans `src/actions/` ne doivent pas être modifiées dans leurs signatures ni dans leurs types de retour sans mise à jour complète des composants appelants.
+
+**Règles :**
+- Ne pas modifier les noms de fonctions Server Action sans mettre à jour tous les `useActionState`, `useForm` et appels associés.
+- Les types de state (`CotisationFormState`, `MembreFormState`, `ParametresFormState`, etc.) doivent conserver leur structure `success | fieldErrors | message`.
+- Les schémas Zod (ex: `cotationSchema`, `membreSchema`) ne doivent pas être modifiés de manière à casser la compatibilité descendante.
+
+---
+
+## 6. FORMULAIRES ET GESTION D'ÉTAT
+
+- Utiliser React Hook Form + Zod conformément aux patterns existants.
+- Les états de formulaire (`formState`) doivent suivre le pattern `{ success, fieldErrors, message }`.
+- Les modales de formulaire (ex: `MembreFormModal`, `CotisationForm`, `DepenseForm`) ne doivent pas avoir leurs champs supprimés ni leurs props de callback modifiées.
+
+---
+
+## 7. PERMISSIONS ET AUTHENTIFICATION
+
+- Les gardes d'action (`@/lib/garde-actions`) et les rôles utilisateur (`@/lib/utilisateur`) ne doivent pas être modifiés sans raison critique.
+- La structure de navigation dans la Sidebar doit respecter les droits par rôle existants.
+
+---
+
+## 8. GÉNÉRAL — CARACTÈRES D'ÉCHAPPEMENT
+
+- Interdiction d'introduire des caractères `\n` non désirés dans les fichiers de code, notamment dans :
+  - Les définitions de chaînes de caractères et templates.
+  - Les types et interfaces TypeScript.
+  - Les configs de fichiers (bien que `.clinerules` itself en contienne un à des fins documentaires, ce n'est pas autorisé dans le code source).
+- Vérifier que `console.log`, les commentaires et les exports ne contiennent pas de sauts de ligne parasites qui casseraient la compilation TypeScript ou les exports nommés.
+
+---

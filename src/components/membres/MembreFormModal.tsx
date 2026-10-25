@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useActionState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
@@ -22,7 +22,13 @@ import { enregistrerMembre } from "@/actions/membre";
 import AdresseAutocompleteMap from "@/components/membres/AdresseAutocompleteMap";
 import PhotoUploader from "@/components/membres/PhotoUploader";
 import { parseDonneesEcclesiastiques } from "@/lib/membre";
-import { initialMembreFormState, type MembreEditable } from "@/types/membre";
+import {
+  DEFAUT_INDICATIF,
+  INDICATIFS_PAYS,
+  prefixerNumero,
+  trouverIndicatif,
+} from "@/lib/telephone";
+import { initialMembreFormState, type MembreEditable, type MembreFormState } from "@/types/membre";
 
 // ---------------------------------------------------------------------------
 // Onglets horizontaux du formulaire modulaire
@@ -41,7 +47,7 @@ const TABS = [
     numero: 2,
     label: "Contact",
     icon: Phone,
-    champs: ["telephone", "email", "telephoneFixe", "indicatifPays"],
+    champs: ["telephone", "email", "telephoneFixe"],
   },
   { id: "adresse", numero: 3, label: "Adresse", icon: MapPin, champs: ["adresse"] },
   {
@@ -60,11 +66,7 @@ const TABS = [
   },
 ] as const;
 
-const INDICATIFS_PAYS = [
-  { code: "+228", drapeau: "🇹🇬", pays: "Togo", label: "🇹🇬 Togo (+228)" },
-];
-
-const DEFAUT_INDICATIF = "+228";
+const DEFAUT_INDICATIF_PAYS = DEFAUT_INDICATIF;
 
 type TabId = (typeof TABS)[number]["id"];
 
@@ -200,10 +202,14 @@ function SelectField({ id, name, label, value, onChange, options, error, hint, r
   );
 }
 
-function PhoneField({ id, name, label, value, onChange, error, hint, required, autoComplete, placeholder = "Numéro de téléphone" }: {
+function PhoneField({ id, name, label, value, onChange, error, hint, required, autoComplete, placeholder = "Numéro de téléphone", indicatif, onIndicatifChange }: {
   id: string; name: string; label: string; value: string;
   onChange: (v: string) => void;
   error?: string; hint?: string; required?: boolean; autoComplete?: string; placeholder?: string;
+  /** Indicatif partagé (Cellulaire / WhatsApp) : lorsqu'il est fourni, le champ
+   *  est piloté par le parent et son sélecteur reflète le pays commun. */
+  indicatif?: string;
+  onIndicatifChange?: (code: string) => void;
 }) {
   // CORRECTION DÉFINITIVE — saisie téléphone SANS BLOCAGE :
   // - Le champ est séparé en 2 éléments côte à côte : <select> indicatif + <input> numéro.
@@ -212,32 +218,37 @@ function PhoneField({ id, name, label, value, onChange, error, hint, required, a
   // - Seule la valeur SOUMISE (hidden) est trimmée pour rester propre en BDD.
   const valeurBrute = value ?? "";
   const valeurSansEspacesDebut = valeurBrute.replace(/^\s+/, "");
-  // Un seul indicatif autorisé : +228 (Togo). Correspondance exacte du préfixe.
+  // Indicatif détecté dans la valeur courante (mode édition : le numéro
+  // enregistré porte déjà son indicatif).
   const codeTrouve = useMemo(
-    () =>
-      [...INDICATIFS_PAYS]
-        .sort((a, b) => b.code.length - a.code.length)
-        .find((c) => valeurSansEspacesDebut.startsWith(c.code)),
+    () => trouverIndicatif(valeurSansEspacesDebut),
     [valeurSansEspacesDebut],
   );
-  // Indicatif mémorisé : choisir le pays AVANT de taper le numéro ne doit pas retomber sur l'ancien défaut.
-  // Pays par défaut : Togo (+228).
+  // Indicatif mémorisé : choisir le pays AVANT de taper le numéro ne doit pas
+  // retomber sur l'ancien défaut. Pays par défaut : Togo (+228).
   // On dérive l'indicatif affiché directement de l'état, sans effet ni setState :
   // dès que la valeur externe impose un autre indicatif (mode édition), c'est
   // `codeTrouve` qui fait foi (règle `react-hooks/set-state-in-effect`).
-  const [indicatifMemorise, setIndicatifMemorise] = useState<string>(DEFAUT_INDICATIF);
+  const [indicatifMemorise, setIndicatifMemorise] = useState<string>(DEFAUT_INDICATIF_PAYS);
 
-  const indicatif = codeTrouve?.code ?? indicatifMemorise;
+  // Indicatif effectif : le parent (partagé Cellulaire / WhatsApp) prime,
+  // sinon la valeur détectée, sinon l'indicatif mémorisé.
+  const indicatifEffectif =
+    indicatif ?? codeTrouve?.code ?? indicatifMemorise;
   // IMPORTANT : on ne retire qu'UN seul espace de séparation après l'indicatif,
   // on conserve tout le reste (espaces intérieurs + espace final en cours de frappe).
-  const numero = codeTrouve
-    ? valeurSansEspacesDebut.slice(codeTrouve.code.length).replace(/^\s/, "")
-    : valeurSansEspacesDebut;
+  const numero =
+    codeTrouve && codeTrouve.code === indicatifEffectif
+      ? valeurSansEspacesDebut.slice(codeTrouve.code.length).replace(/^\s/, "")
+      : valeurSansEspacesDebut;
 
   const changerIndicatif = (code: string) => {
     setIndicatifMemorise(code);
+    onIndicatifChange?.(code);
     if (numero.trim() !== "") {
-      onChange(`${code} ${numero.trim()}`);
+      // `prefixerNumero` retire l'indicatif éventuellement déjà présent avant
+      // d'appliquer celui du pays sélectionné.
+      onChange(prefixerNumero(numero, code));
     }
   };
   // Saisie libre SANS BLOCAGE : on ne coupe ni les espaces intérieurs ni les
@@ -249,10 +260,13 @@ function PhoneField({ id, name, label, value, onChange, error, hint, required, a
       return;
     }
     // On propage tel quel (espaces conservés) pour ne jamais bloquer la frappe.
-    onChange(`${indicatif} ${sansEspacesDebut}`);
+    onChange(`${indicatifEffectif} ${sansEspacesDebut}`);
   };
   // Valeur réellement envoyée au Server Action : version nettoyée (sans espace final).
-  const valeurSoumise = numero.trim() === "" ? "" : `${indicatif} ${numero.trim()}`;
+  const valeurSoumise = numero.trim() === "" ? "" : `${indicatifEffectif} ${numero.trim()}`;
+  // Champ piloté par le parent (indicatif partagé) : le sélecteur interne est
+  // remplacé par un badge en lecture seule, source de vérité unique.
+  const indicatifPilote = indicatif !== undefined;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-foreground">
@@ -261,18 +275,28 @@ function PhoneField({ id, name, label, value, onChange, error, hint, required, a
       </label>
       {/* Sélecteur pays/drapeau + saisie numéro — flexbox horizontale, côte à côte */}
       <div className="flex w-full items-center gap-3">
-        <select
-          id={`${id}-indicatif`}
-          aria-label={`Pays / indicatif — ${label}`}
-          title="Choix du pays / indicatif"
-          value={indicatif}
-          onChange={(e) => changerIndicatif(e.target.value)}
-          className="flex h-10 w-44 shrink-0 cursor-pointer rounded-lg border border-card-border bg-background px-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
-        >
-          {INDICATIFS_PAYS.map((c) => (
-            <option key={c.code} value={c.code} title={c.label}>{c.label}</option>
-          ))}
-        </select>
+        {indicatifPilote ? (
+          <span
+            className="flex h-10 w-44 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-card-border bg-muted/60 px-2 text-sm text-foreground"
+            title={`Indicatif appliqué : ${indicatifEffectif}`}
+          >
+            <span aria-hidden>{INDICATIFS_PAYS.find((c) => c.code === indicatifEffectif)?.drapeau}</span>
+            <span>{indicatifEffectif}</span>
+          </span>
+        ) : (
+          <select
+            id={`${id}-indicatif`}
+            aria-label={`Pays / indicatif — ${label}`}
+            title="Choix du pays / indicatif"
+            value={indicatifEffectif}
+            onChange={(e) => changerIndicatif(e.target.value)}
+            className="flex h-10 w-44 shrink-0 cursor-pointer rounded-lg border border-card-border bg-background px-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
+          >
+            {INDICATIFS_PAYS.map((c) => (
+              <option key={c.code} value={c.code} title={c.label}>{c.label}</option>
+            ))}
+          </select>
+        )}
         <input
           id={id}
           type="tel"
@@ -304,13 +328,16 @@ type Props = {
   triggerLabel?: string;
   /** Variante visuelle du bouton déclencheur. */
   variant?: "primary" | "secondary";
+  /** Localisation GPS de l'église (issue des paramètres) pour calcul de distance pastorale. */
+  localisationGpsEglise?: string | null;
 };
 
-export default function MembreFormModal({ membre, triggerLabel, variant = "primary" }: Props) {
+export default function MembreFormModal({ membre, triggerLabel, variant = "primary", localisationGpsEglise }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [ongletActif, setOngletActif] = useState<TabId>("personnel");
-  const [etat, formAction, enCours] = useActionState(enregistrerMembre, initialMembreFormState);
+  const [etat, setEtat] = useState<MembreFormState>(initialMembreFormState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const donneesInitiales = useMemo(
     () => parseDonneesEcclesiastiques(membre?.donneesEcclesiastiques ?? null),
@@ -388,14 +415,20 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
   const setChamp = (cle: keyof Formulaire, valeur: string | boolean) =>
     setFormulaire((prev) => ({ ...prev, [cle]: valeur }));
 
+
   // RESTART CLEAN : on ne réinitialise qu'à l'ouverture (transition
   // fermé → ouvert). Jamais lors d'un changement d'onglet ni d'une
   // validation serveur ratée → zéro perte de données.
   const ouvertPrecedentRef = useRef(false);
   useEffect(() => {
     if (open && !ouvertPrecedentRef.current) {
+      // Ouverture : réinitialise le formulaire et l'onglet
       setFormulaire(construireValeursInitiales());
       setOngletActif("personnel");
+    } else if (!open && ouvertPrecedentRef.current) {
+      // Fermeture manuelle : reset l'onglet et le formulaire pour éviter tout état collant
+      setOngletActif("personnel");
+      setFormulaire(construireValeursInitiales());
     }
     ouvertPrecedentRef.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,25 +440,31 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
   // Après soumission : fermer en cas de succès, sinon ouvrir le premier
   // onglet qui contient un champ en erreur.
   //
-  // On évite le `setState` synchrone dans un effet (règle
-  // `react-hooks/set-state-in-effect`) : la fermeture et la sélection
-  // d'onglet sont dérivées PENDANT le rendu à partir de l'état serveur,
-  // puis l'effet ne fait que le rafraîchissement des données.
+  // Fermeture du modal et retour à l'onglet "personnel" gérés dans un effet
+  // déclenché uniquement à la transition success=false → true, afin que le
+  // drapeau collant de `useActionState` ne referme pas le modal à la
+  // réouverture ultérieure.
   const ongletEnErreur = etat.success
     ? undefined
     : TABS.find((tab) =>
         tab.champs.some((champ) => etat.fieldErrors[champ] !== undefined),
       );
-  if (etat.success) {
-    if (open) setOpen(false);
-    if (ongletActif !== "personnel") setOngletActif("personnel");
-  } else if (ongletEnErreur && ongletEnErreur.id !== ongletActif) {
+  if (!etat.success && ongletEnErreur && ongletEnErreur.id !== ongletActif) {
     setOngletActif(ongletEnErreur.id);
   }
 
+  const etatPrecedentRef = useRef(etat);
   useEffect(() => {
-    if (etat.success) router.refresh();
-  }, [etat, router]);
+    const etaitSucces = etatPrecedentRef.current.success;
+    etatPrecedentRef.current = etat;
+    if (etat.success && !etaitSucces) {
+      setOpen(false);           // isModalOpen <- false immédiatement
+      setOngletActif("personnel");
+      router.refresh();
+    }
+  }, [etat.success, router]);
+
+
 
   // Fermeture par la touche Échap + verrouillage du défilement de fond.
   useEffect(() => {
@@ -562,16 +601,33 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                 - L'enregistrement réel en BDD ne part QUE depuis le bouton final
                   type="submit" du dernier onglet ("Données ecclésiastiques"). */}
             <form
-              action={formAction}
               className="flex min-h-0 flex-1 flex-col"
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
+                e.preventDefault();
                 if (!dernierOnglet) {
                   // Navigation PURE depuis un onglet intermédiaire (dont l'Étape 4
                   // "Données sur l'emploi") : jamais de soumission / validation serveur.
-                  e.preventDefault();
                   if (indexActif < TABS.length - 1) {
                     setOngletActif(TABS[indexActif + 1].id);
                   }
+                  return;
+                }
+                // Dernier onglet : soumission réelle vers le Server Action
+                setIsSubmitting(true);
+                try {
+                  const resultat = await enregistrerMembre(etat, new FormData(e.target as HTMLFormElement));
+                  setEtat(resultat);
+                } catch (erreur) {
+                  console.error("Erreur lors de l'enregistrement du membre :", erreur);
+                  setEtat({
+                    success: false,
+                    message: "Erreur inattendue lors de l'enregistrement du membre.",
+                    fieldErrors: { _form: ["Erreur inattendue lors de l'enregistrement."] },
+                    membreId: null,
+                  });
+                } finally {
+                  // Déblocage IMMÉDIAT de l'état de soumission, même en cas d'erreur de validation
+                  setIsSubmitting(false);
                 }
               }}
             >
@@ -638,12 +694,31 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                   </div>
 
                   <div hidden={ongletActif !== "contact"} className={ongletActif !== "contact" ? "hidden" : "flex flex-col gap-5"}>
-                      {/* Téléphones empilés : chacun pleine largeur, l'un en dessous de l'autre */}
-                      <div className="flex w-full flex-col gap-4">
-                        {/* Ligne 1 — Téléphone cellulaire * (pleine largeur) */}
-                        <PhoneField id="telephone" name="telephone" label="Téléphone cellulaire" required value={formulaire.telephone} onChange={(v) => setChamp("telephone", v)} autoComplete="tel" error={erreurDe("telephone")} hint="Numéro unique avec indicatif pays — identifie le membre." />
-                        {/* Ligne 2 — Numéro WhatsApp facultatif (pleine largeur) */}
-                        <PhoneField id="telephoneFixe" name="telephoneFixe" label="Numéro WhatsApp" value={formulaire.telephoneFixe} onChange={(v) => setChamp("telephoneFixe", v)} autoComplete="tel" placeholder="+228 90 12 34 56" error={erreurDe("telephoneFixe")} hint="Facultatif — pour envoyer des messages WhatsApp." />
+                      {/* Téléphone cellulaire — sélecteur pays/indicatif indépendant */}
+                      <PhoneField
+                        id="telephone"
+                        name="telephone"
+                        label="Téléphone cellulaire"
+                        required
+                        value={formulaire.telephone}
+                        onChange={(v) => setChamp("telephone", v)}
+                        autoComplete="tel"
+                        error={erreurDe("telephone")}
+                        hint="Numéro unique avec indicatif pays — identifie le membre."
+                      />
+                      {/* Numéro WhatsApp — sélecteur pays/indicatif indépendant */}
+                      <PhoneField
+                        id="telephoneFixe"
+                        name="telephoneFixe"
+                        label="Numéro WhatsApp"
+                        value={formulaire.telephoneFixe}
+                        onChange={(v) => setChamp("telephoneFixe", v)}
+                        autoComplete="tel"
+                        placeholder="90 12 34 56"
+                        error={erreurDe("telephoneFixe")}
+                        hint="Facultatif — pour envoyer des messages WhatsApp."
+                      />
+
                       </div>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <TextField id="email" name="email" label="E-mail" type="email" value={formulaire.email} onChange={(v) => setChamp("email", v)} placeholder="komlan.mensa@paroisse.tg" autoComplete="email" error={erreurDe("email")} hint="Facultatif." />
@@ -665,6 +740,7 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                       latitudeInitiale={donneesInitiales.adresseLatitude ?? null}
                       longitudeInitiale={donneesInitiales.adresseLongitude ?? null}
                       erreur={erreurDe("adresse")}
+                      localisationGpsEglise={localisationGpsEglise}
                     />
                   </div>
 
@@ -718,7 +794,6 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                       </div>
                   </div>
                 </div>
-              </div>
 
               {/* Pied de la modale */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-card-border bg-muted/40 px-6 py-4">
@@ -735,7 +810,6 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                     <button
                       type="button"
                       onClick={() => setOngletActif(TABS[indexActif - 1].id)}
-                      disabled={enCours}
                       className="rounded-lg border border-card-border bg-card px-4 py-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                     >
                       Précédent
@@ -745,15 +819,15 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                   {dernierOnglet ? (
                     <button
                       type="submit"
-                      disabled={enCours}
+                      disabled={isSubmitting}
                       className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                     >
-                      {enCours ? (
+                      {isSubmitting ? (
                         <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
                       ) : (
                         <Check className="h-4 w-4" aria-hidden />
                       )}
-                      {enCours
+                      {isSubmitting
                         ? "Enregistrement…"
                         : membre
                           ? "Mettre à jour"
@@ -774,7 +848,6 @@ export default function MembreFormModal({ membre, triggerLabel, variant = "prima
                           setOngletActif(TABS[indexActif + 1].id);
                         }
                       }}
-                      disabled={enCours}
                       className="inline-flex items-center gap-1 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                     >
                       Suivant

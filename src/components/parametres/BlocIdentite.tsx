@@ -28,13 +28,26 @@ export default function BlocIdentite({ initiale = {}, erreurs = {} }: Props) {
           <span className="font-medium text-foreground">Nom officiel de l&apos;église</span>
           <input
             type="text"
-            name="nomEglise"
+            name="nomOfficiel"
             required
-            defaultValue={initiale.nomEglise}
+            defaultValue={initiale.nomOfficiel}
             placeholder="Église Évangélique de Bè"
             className={inputCls}
           />
-          <ErreurChamp message={erreurs.nomEglise} />
+          <ErreurChamp message={erreurs.nomOfficiel} />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+          <span className="font-medium text-foreground">Mission / But de l&apos;assemblée</span>
+          <textarea
+            name="mission"
+            defaultValue={initiale.mission}
+            maxLength={500}
+            rows={3}
+            placeholder="Ex. Rassembler les croyants pour adorer Dieu et servir la communauté…"
+            className={inputCls}
+          />
+          <ErreurChamp message={erreurs.mission} />
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
@@ -80,13 +93,13 @@ export default function BlocIdentite({ initiale = {}, erreurs = {} }: Props) {
           <span className="font-medium text-foreground">Adresse du siège</span>
           <input
             type="text"
-            name="adresse"
-            defaultValue={initiale.adresse}
+            name="adresseSiege"
+            defaultValue={initiale.adresseSiege}
             maxLength={250}
             placeholder="Quartier, ville (ex. Tokoin, Lomé)"
             className={inputCls}
           />
-          <ErreurChamp message={erreurs.adresse} />
+          <ErreurChamp message={erreurs.adresseSiege} />
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">

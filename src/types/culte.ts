@@ -25,6 +25,7 @@ export const initialCulteFormState: CulteFormState = {
 
 export type StatutEvenement = "PLANIFIE" | "TERMINE" | "ANNULE";
 export type StatutTache = "A_FAIRE" | "EN_COURS" | "CLOTUREE";
+export type TypeEvenement = "OPTIONNEL" | "RESPONSABILISE";
 
 export const LIBELLES_STATUT_EVENEMENT: Record<StatutEvenement, string> = {
   PLANIFIE: "Planifié",
@@ -38,20 +39,39 @@ export const LIBELLES_STATUT_TACHE: Record<StatutTache, string> = {
   CLOTUREE: "Clôturée",
 };
 
-/** Responsable sérialisé d'une tâche (membre assigné). */
+export const LIBELLES_TYPE_EVENEMENT: Record<TypeEvenement, string> = {
+  OPTIONNEL: "Optionnel",
+  RESPONSABILISE: "Responsabilisé",
+};
+
+/** Responsable sérialisé (membre assigné à un événement ou une tâche). */
 export type ResponsableResume = {
   id: string;
   nomComplet: string;
+};
+
+/** Type de tâche sérialisé pour les composants clients. */
+export type TypeTacheResume = {
+  id: string;
+  libelle: string;
+  couleur: string | null;
+  estParDefaut: boolean;
 };
 
 /** Tâche d'événement sérialisée pour les composants clients. */
 export type TacheResume = {
   id: string;
   culteId: string;
+  /** Date spécifique de la tâche (YYYY-MM-DD) pour les événements plurijournaliers. */
+  dateTache: string | null;
   titre: string;
+  heureDebut: string | null;
+  heureFin: string | null;
   description: string | null;
   statut: StatutTache;
   responsable: ResponsableResume | null;
+  typeTache: TypeTacheResume | null;
+  equipe: ResponsableResume[];
 };
 
 /** Événement sérialisé pour les composants clients (Date → texte). */
@@ -59,10 +79,17 @@ export type CulteResume = {
   id: string;
   dateISO: string;
   dateAffichee: string;
+  dateFin: string | null;
+  heureDebut: string | null;
+  heureFin: string | null;
   intitule: string;
   lieu: string | null;
   description: string | null;
+  theme: string | null;
+  descriptionTheme: string | null;
   statut: StatutEvenement;
+  type: TypeEvenement;
+  responsable: ResponsableResume | null;
   /** Mois de l'événement au format « AAAA-MM », pour le regroupement planning. */
   moisCle: string;
   moisLibelle: string;

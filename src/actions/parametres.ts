@@ -19,16 +19,17 @@ import type { ParametresFormState } from "@/lib/parametres-types";
 
 const parametresSchema = z.object({
   // Onglet « Identité & Légal ».
-  nomEglise: z.string().trim().min(2, "Nom de l'église requis (2 caractères min.).").max(150),
+  nomOfficiel: z.string().trim().min(2, "Nom de l'église requis (2 caractères min.).").max(150),
+  mission: z.string().trim().max(500, "500 caractères maximum.").optional().default(""),
   numeroEnregistrement: z.string().trim().max(80, "80 caractères maximum.").optional().default(""),
   numeroIfu: z.string().trim().max(80, "80 caractères maximum.").optional().default(""),
   rib: z.string().trim().max(80, "80 caractères maximum.").optional().default(""),
-  adresse: z.string().trim().max(250).optional().default(""),
+  adresseSiege: z.string().trim().max(250).optional().default(""),
   ville: z.string().trim().max(120, "120 caractères maximum.").optional().default(""),
   localisationGps: z.string().trim().max(80, "80 caractères maximum.").optional().default(""),
   // Onglet « Coordonnées & Responsables ».
   emailContact: z.email("E-mail de contact invalide.").or(z.literal("")),
-  telephone: z.string().trim().max(30).optional().default(""),
+  telephones: z.array(z.string().trim().max(30, "30 caractères maximum par numéro.")).default([""]),
   pasteurPrincipal: z.string().trim().max(120, "120 caractères maximum.").optional().default(""),
   secretariat: z.string().trim().max(150, "150 caractères maximum.").optional().default(""),
   // Onglet « Devise & Exercice ».
@@ -83,16 +84,29 @@ export async function enregistrerParametres(
     };
   }
 
+  // Numéros de téléphone : plusieurs champs telephone_0, telephone_1, …
+  const telephonesBrut: string[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    const valeur = formData.get(`telephone_${i}`);
+    if (valeur !== null && String(valeur).trim() !== "") {
+      telephonesBrut.push(String(valeur).trim());
+    }
+  }
+  if (telephonesBrut.length === 0) {
+    telephonesBrut.push("");
+  }
+
   const analyse = parametresSchema.safeParse({
-    nomEglise: formData.get("nomEglise"),
+    nomOfficiel: formData.get("nomOfficiel"),
+    mission: formData.get("mission") ?? "",
     numeroEnregistrement: formData.get("numeroEnregistrement") ?? "",
     numeroIfu: formData.get("numeroIfu") ?? "",
     rib: formData.get("rib") ?? "",
-    adresse: formData.get("adresse") ?? "",
+    adresseSiege: formData.get("adresseSiege") ?? "",
     ville: formData.get("ville") ?? "",
     localisationGps: formData.get("localisationGps") ?? "",
     emailContact: formData.get("emailContact"),
-    telephone: formData.get("telephone") ?? "",
+    telephones: telephonesBrut,
     pasteurPrincipal: formData.get("pasteurPrincipal") ?? "",
     secretariat: formData.get("secretariat") ?? "",
     devise: formData.get("devise"),
@@ -113,28 +127,30 @@ export async function enregistrerParametres(
   const precedent = await lireConfiguration().catch(() => null);
 
   await ecrireConfiguration({
-    nomEglise: analyse.data.nomEglise.trim(),
+    nomOfficiel: analyse.data.nomOfficiel.trim(),
+    mission: analyse.data.mission.trim(),
     numeroEnregistrement: analyse.data.numeroEnregistrement.trim(),
     numeroIfu: analyse.data.numeroIfu.trim(),
     rib: analyse.data.rib.trim(),
-    adresse: (analyse.data.adresse ?? "").trim(),
+    adresseSiege: (analyse.data.adresseSiege ?? "").trim(),
     ville: analyse.data.ville.trim(),
     localisationGps: analyse.data.localisationGps.trim(),
     emailContact: analyse.data.emailContact.trim(),
-    telephone: (analyse.data.telephone ?? "").trim(),
+    telephones: analyse.data.telephones,
     pasteurPrincipal: analyse.data.pasteurPrincipal.trim(),
     secretariat: analyse.data.secretariat.trim(),
     devise: analyse.data.devise,
     symboleDevise: analyse.data.symboleDevise.trim(),
     moisDebutExercice: analyse.data.moisDebutExercice,
     logoDataUrl: analyse.data.logoDataUrl,
+    logoUrl: analyse.data.logoDataUrl || null,
   });
 
   await consignerAudit({
     action: "PARAMETRES_MISE_A_JOUR",
     entite: "ConfigurationEglise",
     auteurNom: session.user.name ?? session.user.email ?? "Administrateur",
-    details: `Paramètres mis à jour : « ${analyse.data.nomEglise.trim()} » (devise ${analyse.data.devise}). Ancien nom : « ${precedent?.nomEglise || "—"} ».`,
+    details: `Paramètres mis à jour : « ${analyse.data.nomOfficiel.trim()} » (devise ${analyse.data.devise}). Ancien nom : « ${precedent?.nomOfficiel || "—"} ».`,
   });
 
   revalidatePath("/parametres");

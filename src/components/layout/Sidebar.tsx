@@ -14,13 +14,11 @@ import {
   HeartHandshake,
   Network,
   Settings,
-  Settings2,
   ShieldCheck,
   Users,
   Wallet,
 } from "lucide-react";
-import ThemeToggle from "@/components/layout/ThemeToggle";
-import BlocSessionSidebar from "@/components/layout/BlocSessionSidebar";
+
 import { useSession } from "next-auth/react";
 import { aAccesAuChemin } from "@/lib/permissions";
 
@@ -165,8 +163,11 @@ function NavigationPrincipale({ onNavigate }: { onNavigate?: () => void }) {
     setSectionsOuvertes(suivantes);
   }, [pathname]);
 
+  // Sur mobile, l'<aside> défile déjà (menu plein écran) : la zone de
+  // navigation ne crée pas de second scroll. Sur desktop, l'<aside> est figé
+  // (`md:overflow-hidden`) et seule la navigation défile.
   return (
-    <nav className="flex-1 space-y-1 py-4" aria-label="Navigation principale">
+    <nav className="min-h-0 flex-1 space-y-1 py-4 md:overflow-y-auto md:overscroll-contain md:pr-1" aria-label="Navigation principale">
       {itemsVisibles.map(
         ({ href, label, description, icon: Icon, iconColor, children }, index) => {
         const estCourant = estCheminCourant(pathname, href);
@@ -311,7 +312,7 @@ export default function Sidebar({
   return (
     <aside
       className={clsx(
-        "flex h-full flex-col overflow-y-auto p-4 bg-card w-full md:h-screen md:w-64 md:flex-shrink-0 md:overflow-hidden md:border-r md:border-border md:p-0",
+        "flex h-full flex-col overflow-y-auto p-4 bg-card w-full md:h-screen md:w-64 md:flex-shrink-0 md:overflow-hidden md:border-r md:border-neutral-800 md:p-0",
         className ?? "hidden md:flex",
       )}
     >
@@ -330,22 +331,7 @@ export default function Sidebar({
         <NavigationPrincipale onNavigate={onNavigate} />
       </Suspense>
 
-      {/* 3. Bloc Profil & Déconnexion (dans le flux, tout en bas) */}
-      <div className="mt-auto pt-4 border-t border-border space-y-3 pb-8">
-        <BlocSessionSidebar />
-        <div className="mb-3 mt-4 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Apparence</span>
-          <ThemeToggle />
-        </div>
-        <Link
-          href="/finances/cotisations?tab=types"
-          onClick={onNavigate}
-          className="group flex items-center gap-2 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Settings2 className="h-3.5 w-3.5 text-accent" aria-hidden />
-          Exercice & barèmes : configurer
-        </Link>
-      </div>
+
     </aside>
   );
 }

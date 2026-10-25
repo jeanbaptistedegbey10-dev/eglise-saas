@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
+import { consignerAudit } from "@/lib/audit";
 import { exigerEcritureMembres } from "@/lib/garde-actions";
 import { validerPhotoDataUrl } from "@/lib/photo";
 import { prisma } from "@/lib/prisma";
@@ -216,7 +218,7 @@ export async function enregistrerMembre(
       .split(",")
       .map((fonction) => fonction.trim())
       .filter((fonction) => fonction.length > 0),
-    photoDataUrl: lireTexte(formData.get("photoDataUrl")),
+    photoDataUrl: lireTexte(formData.get("photoUrl") ?? formData.get("photoDataUrl")),
     photoModifiee: formData.get("photoModifiee") === "on",
     photoSupprimee: formData.get("photoSupprimee") === "on",
   };
@@ -392,5 +394,152 @@ export async function enregistrerMembre(
       membreId: null,
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Suppression d'un membre
+// ---------------------------------------------------------------------------
+
+/**
+ * Suppression d'un membre après confirmation explicite.
+ *
+ * La suppression reste **côté serveur** : le client ne fait qu'envoyer
+ * l'identifiant et la confirmation, toutes les vérifications (droits, relations
+ * Prisma, existence) sont refaites ici.
+ */
+const suppressionMembreSchema = z.object({
+  membreId: z.string().trim().min(1, "Identifiant du membre manquant."),
+  confirmation: z
+    .string()
+    .trim()
+    .refine((valeur) => valeur.toUpperCase() === "SUPPRIMER", {
+      message: "Tapez « SUPPRIMER » pour confirmer.",
+    }),
+});
+
+/**
+ * Supprime un membre et ses rattachements directs (affectations
+ * département / groupe, supprimées en cascade par Prisma).
+ *
+ * Les écritures financières qui le concernent (paiements, aides reçues,
+ * versements de cotisation, dépenses, mouvements de caisse, tâches assignées)
+ * sont **conservées** : la relation passe à `NULL` (`onDelete: SetNull`),
+ * l'historique comptable reste intact.
+ *
+ * La suppression est refusée si le membre dirige encore un département ou un
+ * groupe peuplé (il faudrait d'abord désigner un autre responsable) : sans
+ * cela, la structure organisationnelle resterait orpheline.
+ */
+export async function supprimerMembre(
+  _precedentEtat: MembreFormState,
+  formData: FormData,
+): Promise<MembreFormState> {
+  const garde = await exigerEcritureMembres();
+  if (!garde.ok) {
+    return {
+      success: false,
+      message: garde.message,
+      fieldErrors: { _form: [garde.message] },
+      membreId: null,
+    };
+  }
+
+  const analyse = suppressionMembreSchema.safeParse({
+    membreId: lireTexte(formData.get("membreId")),
+    confirmation: lireTexte(formData.get("confirmation")),
+  });
+  if (!analyse.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of analyse.error.issues) {
+      const cle = issue.path.length > 0 ? String(issue.path[0]) : "_form";
+      (fieldErrors[cle] ??= []).push(issue.message);
+    }
+    return {
+      success: false,
+      message: "Suppression non confirmée.",
+      fieldErrors,
+      membreId: null,
+    };
+  }
+
+  const { membreId } = analyse.data;
+
+  try {
+    const membre = await prisma.membre.findUnique({
+      where: { id: membreId },
+      select: { id: true, nom: true, prenoms: true },
+    });
+    if (!membre) {
+      return {
+        success: false,
+        message: "Membre introuvable : il a peut-être déjà été supprimé.",
+        fieldErrors: { _form: ["Membre introuvable."] },
+        membreId: null,
+      };
+    }
+
+    // Responsabilités organisationnelles : le membre dirige encore un
+    // département ou un groupe ? On exige un nouveau responsable avant de
+    // supprimer, sinon la structure reste sans titulaire.
+    const [departementsDiriges, groupesDiriges] = await Promise.all([
+      prisma.departement.findMany({
+        where: { responsableId: membreId },
+        select: { id: true, nom: true, _count: { select: { membres: true } } },
+      }),
+      prisma.groupe.findMany({
+        where: { responsableId: membreId },
+        select: { id: true, nom: true, _count: { select: { membres: true } } },
+      }),
+    ]);
+
+    const departementsPeuples = departementsDiriges.filter((d) => d._count.membres > 0);
+    const groupesPeuples = groupesDiriges.filter((g) => g._count.membres > 0);
+
+    if (departementsPeuples.length > 0 || groupesPeuples.length > 0) {
+      const details = [
+        ...departementsPeuples.map((d) => `le département « ${d.nom} » (${d._count.membres} membre(s))`),
+        ...groupesPeuples.map((g) => `le groupe « ${g.nom} » (${g._count.membres} membre(s))`),
+      ];
+      return {
+        success: false,
+        message: `Suppression impossible : ${membre.nom} ${membre.prenoms} dirige encore ${details.join(" et ")}. Désignez d'abord un autre responsable.`,
+        fieldErrors: {
+          _form: [
+            `Suppression impossible : ${membre.nom} ${membre.prenoms} dirige encore ${details.join(" et ")}. Désignez d'abord un autre responsable.`,
+          ],
+        },
+        membreId: null,
+      };
+    }
+
+    // Affectations directes (départements / groupes) : supprimées en cascade.
+    await prisma.$transaction([
+      prisma.departementMembre.deleteMany({ where: { membreId } }),
+      prisma.groupeMembre.deleteMany({ where: { membreId } }),
+    ]);
+
+    await prisma.membre.delete({ where: { id: membreId } });
+
+    await consignerAudit({
+      action: "SUPPRESSION",
+      entite: "Membre",
+      entiteId: membreId,
+      auteurNom: garde.nom,
+      details: `Le membre « ${membre.nom} ${membre.prenoms} » a été supprimé du répertoire (affectations département/groupe supprimées ; écritures financières conservées).`,
+    });
+
+    revalidatePath("/membres");
+  } catch (erreur) {
+    console.error("Erreur Prisma lors de la suppression d'un membre :", erreur);
+    return {
+      success: false,
+      message:
+        "Impossible de supprimer le membre. Vérifiez la connexion à la base de données.",
+      fieldErrors: { _form: ["Erreur serveur lors de la suppression."] },
+      membreId: null,
+    };
+  }
+
+  redirect("/membres");
 }
 

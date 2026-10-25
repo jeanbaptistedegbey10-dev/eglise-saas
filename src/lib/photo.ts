@@ -20,6 +20,12 @@ export const PHOTO_TAILLE_SOURCE_MAX = 5 * 1024 * 1024;
 /** Dimension maximale (côté le plus long) de la photo stockée, en pixels. */
 export const PHOTO_DIMENSION_MAX = 640;
 
+/** Côté du carré de sortie (rognage centré), en pixels. */
+export const PHOTO_CARRE_COTE = 160;
+
+/** Qualité de ré-encodage JPEG visée pour obtenir ~6-8 Ko stockés en base. */
+export const PHOTO_QUALITE_JPEG = 0.5;
+
 /** Taille maximale de la data URL stockée en base de données (1,5 Mo). */
 export const PHOTO_DATA_URL_MAX = 1_500_000;
 
@@ -60,37 +66,40 @@ export function validerPhotoDataUrl(valeur: string): string | null {
 }
 
 /**
- * Redimensionne une image côté client pour que sa plus grande dimension
- * n'excède pas `PHOTO_DIMENSION_MAX`, puis la ré-encode en JPEG (qualité 82).
+ * Recadre une image en carré centré (rognage « cover »), puis la ré-encode en
+ * JPEG haute compression pour obtenir une photo de profil d'environ 6-8 Ko,
+ * optimisée pour le stockage en base de données.
  *
- * Le redimensionnement drastically réduit le poids stocké en base : une photo
- * de smartphone (plusieurs Mo) devient une data URL de quelques dizaines de
- * kilo-octets, sans perte visible à l'écran.
+ * Le chargement passe par un  + canvas HTML5 (universel, y compris Safari
+ * ancien), puis le canvas est dessiné sur un carré fixe et ré-encodé.
  *
  * @param fichier Image source (fichier choisi par l'utilisateur).
- * @returns La data URL JPEG redimensionnée, ou `null` si l'image n'a pas pu
+ * @returns La data URL JPEG carrée compressée, ou `null` si l'image n'a pas pu
  * être décodée.
  */
 export async function redimensionnerPhoto(fichier: File): Promise<string | null> {
-  // `createImageBitmap` n'est pas supporté partout (Safari ancien) : on
+  // Chargement universel (  + canvas), puis rognage carré centré.
   // repasse par un <img> + canvas, plus universel.
   const bitmap = await chargerImage(fichier);
   if (!bitmap) return null;
 
-  const plusGrand = Math.max(bitmap.width, bitmap.height);
-  const facteur = plusGrand > PHOTO_DIMENSION_MAX ? PHOTO_DIMENSION_MAX / plusGrand : 1;
-  const largeur = Math.max(1, Math.round(bitmap.width * facteur));
-  const hauteur = Math.max(1, Math.round(bitmap.height * facteur));
-
+  const cote = PHOTO_CARRE_COTE;
   const canvas = document.createElement("canvas");
-  canvas.width = largeur;
-  canvas.height = hauteur;
+  canvas.width = cote;
+  canvas.height = cote;
 
   const contexte = canvas.getContext("2d");
   if (!contexte) return null;
-  contexte.drawImage(bitmap, 0, 0, largeur, hauteur);
 
-  return canvas.toDataURL("image/jpeg", 0.82);
+  contexte.fillStyle = "#ffffff";
+  contexte.fillRect(0, 0, cote, cote);
+
+  const echelle = Math.max(cote / bitmap.width, cote / bitmap.height);
+  const largeur = bitmap.width * echelle;
+  const hauteur = bitmap.height * echelle;
+  contexte.drawImage(bitmap, (cote - largeur) / 2, (cote - hauteur) / 2, largeur, hauteur);
+
+  return canvas.toDataURL("image/jpeg", PHOTO_QUALITE_JPEG);
 }
 
 /** Charge un fichier image en `<img>` et résout avec ses dimensions. */

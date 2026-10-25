@@ -10,13 +10,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 export type ConfigurationEglise = {
-  nomEglise: string;
+  nomOfficiel: string;
+  mission: string;
   numeroEnregistrement: string;
   numeroIfu: string;
   rib: string;
   emailContact: string;
-  telephone: string;
-  adresse: string;
+  telephones: string[];
+  adresseSiege: string;
   ville: string;
   localisationGps: string;
   pasteurPrincipal: string;
@@ -29,17 +30,20 @@ export type ConfigurationEglise = {
    * du formulaire des paramètres. Chaîne vide quand aucun logo n'est défini.
    */
   logoDataUrl: string;
+  /** URL publique du logo (data URL ou lien externe). Null quand aucun logo. */
+  logoUrl: string | null;
   misAJourLe: string | null;
 };
 
 export const DEFAUT_CONFIGURATION: ConfigurationEglise = {
-  nomEglise: "",
+  nomOfficiel: "",
+  mission: "",
   numeroEnregistrement: "",
   numeroIfu: "",
   rib: "",
   emailContact: "",
-  telephone: "",
-  adresse: "",
+  telephones: [""],
+  adresseSiege: "",
   ville: "",
   localisationGps: "",
   pasteurPrincipal: "",
@@ -48,6 +52,7 @@ export const DEFAUT_CONFIGURATION: ConfigurationEglise = {
   symboleDevise: "FCFA",
   moisDebutExercice: 1,
   logoDataUrl: "",
+  logoUrl: null,
   misAJourLe: null,
 };
 

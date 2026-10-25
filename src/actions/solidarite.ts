@@ -5,7 +5,11 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { exigerAccesChemin } from "@/lib/garde-actions";
-import type { SolidariteFormState } from "@/types/solidarite";
+import type {
+  SolidariteFormState,
+  StatutRecurrence,
+  RapportMembreDonnees,
+} from "@/types/solidarite";
 
 // ---------------------------------------------------------------------------
 // Schémas Zod
@@ -194,4 +198,175 @@ export async function supprimerAide(
   } catch (erreur) {
     return erreurServeur("supprimerAide", erreur);
   }
+}
+
+/** Extrait le premier montant numérique contenu dans `montantOuNature`. */
+function montantDepuisNature(valeur: string): number {
+  const match = valeur.match(/[-+]?\d[\d\s\u00A0]*(\.\d+)?/);
+  if (!match) return 0;
+  return Number.parseFloat(match[0].replace(/\s|\u00A0/g, "")) || 0;
+}
+
+/** Détermine le statut récurrent / ponctuel d'une catégorie de cotisation. */
+function statutRecurrenceCategorie(type: string): StatutRecurrence {
+  return type === "OBLIGATOIRE_BAREME" ? "RECURRENT" : "PONCTUEL";
+}
+
+/** Détermine le statut récurrent / ponctuel d'un type de cotisation. */
+function statutRecurrenceType(type: string): StatutRecurrence {
+  return type === "RECURRENTE_CLASSE" ? "RECURRENT" : "PONCTUEL";
+}
+
+/**
+ * Retourne les données de rapport d'un membre pour un exercice donné,
+ * ou l'historique global quand `exerciceId` est nul.
+ * Données dynamiques issues de Prisma : versements, paiements, aides distribuées.
+ */
+export async function obtenirRapportMembre(donnees: {
+  membreId: string;
+  exerciceId: string | null;
+}): Promise<RapportMembreDonnees | { erreur: string }> {
+  const garde = await exigerAccesChemin("/solidarite");
+  if (!garde.ok) {
+    return { erreur: garde.message };
+  }
+  const { membreId, exerciceId } = donnees;
+
+  const [membre, exercice, versements, paiements, aides] = await Promise.all([
+    prisma.membre.findUnique({
+      where: { id: membreId },
+      select: { id: true, nom: true, prenoms: true, telephone: true },
+    }),
+    exerciceId
+      ? prisma.exercice.findUnique({ where: { id: exerciceId } })
+      : Promise.resolve(null as { id: string; annee: number; libelle: string } | null),
+    prisma.versementCotisation.findMany({
+      where: {
+        membreId,
+        ...(exerciceId ? { cotisation: { exerciceId } } : {}),
+      },
+      include: {
+        cotisation: { select: { nom: true, type: true, frequence: true } },
+      },
+      orderBy: { dateVersement: "desc" },
+    }),
+    prisma.paiement.findMany({
+      where: { membreId, ...(exerciceId ? { exerciceId } : {}) },
+      include: { typeCotisation: { select: { libelle: true } } },
+      orderBy: { datePaiement: "desc" },
+    }),
+    prisma.aideDistribution.findMany({
+      where: { beneficiaireMembreId: membreId },
+      orderBy: { dateDistribution: "desc" },
+    }),
+  ]);
+
+  if (!membre) {
+    return { erreur: "Membre introuvable." };
+  }
+
+  const libelleExercice = exercice
+    ? `${exercice.libelle} (${exercice.annee})`
+    : "Historique global";
+
+  const historique = exerciceId === null;
+
+  // Bornes de l'exercice pour filtrer les aides (n'ont pas d'exerciceId propre).
+  let debutExercice: Date | null = null;
+  let finExercice: Date | null = null;
+  if (exercice) {
+    debutExercice = new Date(Date.UTC(exercice.annee, exercice.moisDebut - 1, 1));
+    finExercice = new Date(
+      Date.UTC(exercice.annee, exercice.moisFin, 0, 23, 59, 59),
+    );
+  }
+
+  const cotisations: RapportCotisationLigne[] = [];
+
+  for (const v of versements) {
+    if (!v.membreId) continue;
+    cotisations.push({
+      id: v.id,
+      typeCotisation: v.cotisation?.nom ?? "Cotisation",
+      dateISO: v.dateVersement.toISOString().slice(0, 10),
+      dateAffichee: v.dateVersement.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+      montant: Number(v.montant),
+      statut: statutRecurrenceType(v.cotisation?.type ?? "PONCTUELLE_EVENEMENT"),
+      modePaiement: v.modePaiement,
+    });
+  }
+
+  for (const p of paiements) {
+    if (!p.membreId) continue;
+    cotisations.push({
+      id: p.id,
+      typeCotisation: p.typeCotisation?.libelle ?? "Versement",
+      dateISO: p.datePaiement.toISOString().slice(0, 10),
+      dateAffichee: p.datePaiement.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+      montant: Number(p.montant),
+      statut: statutRecurrenceCategorie(p.typeCotisation?.libelle ?? ""),
+      modePaiement: p.modePaiement,
+    });
+  }
+
+  cotisations.sort(
+    (a, b) => b.dateISO.localeCompare(a.dateISO) || b.id.localeCompare(a.id),
+  );
+
+  const aidesLignes: RapportAideLigne[] = aides
+    .filter((a) => {
+      if (!historique && debutExercice && finExercice) {
+        const d = a.dateDistribution;
+        return d >= debutExercice && d <= finExercice;
+      }
+      return true;
+    })
+    .map((a) => ({
+      id: a.id,
+      typeAide: a.motif,
+      dateISO: a.dateDistribution.toISOString().slice(0, 10),
+      dateAffichee: a.dateDistribution.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+      montant: montantDepuisNature(a.montantOuNature),
+      numeroPiece: null,
+    }));
+
+  const totalVersements = cotisations.reduce((s, c) => s + c.montant, 0);
+  const totalAides = aidesLignes.reduce((s, a) => s + a.montant, 0);
+  const nbVersements = cotisations.length;
+  const nbAides = aidesLignes.length;
+
+  const synthese: RapportSynthese = {
+    totalVersements,
+    totalAides,
+    nbVersements,
+    nbAides,
+    moyenneVersement: nbVersements > 0 ? totalVersements / nbVersements : 0,
+    moyenneAide: nbAides > 0 ? totalAides / nbAides : 0,
+  };
+
+  return {
+    membre: {
+      id: membre.id,
+      nom: membre.nom,
+      prenoms: membre.prenoms,
+      telephone: membre.telephone,
+    },
+    exerciceLibelle: libelleExercice,
+    historique,
+    cotisations,
+    aides: aidesLignes,
+    synthese,
+  };
 }
