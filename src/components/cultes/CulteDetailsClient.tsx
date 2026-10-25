@@ -82,7 +82,7 @@ function libelleJour(dateISO: string): string {
 function ligneContactEglise(config: CulteDetailsClientProps["configurationEglise"]): string {
   const parties: string[] = [];
   if (config?.telephones && config.telephones.length > 0) {
-    parties.push(config.telephones.join(" • "));
+    parties.push(`Tél : ${config.telephones.join(" • ")}`);
   }
   if (config?.emailContact) {
     parties.push(config.emailContact);

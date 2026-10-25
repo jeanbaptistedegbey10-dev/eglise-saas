@@ -22,44 +22,60 @@ export default async function EcranAuth({
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
       {/* Partie Gauche : Presentation de l'Entite */}
       <div
-        className={`hidden lg:flex flex-col justify-between p-12 text-white ${
+        className={`hidden lg:flex flex-col items-center justify-between p-12 text-white text-center ${
           isSky
             ? "bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900"
             : "bg-gradient-to-br from-violet-900 via-indigo-900 to-slate-950"
         }`}
       >
         <div>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur">
+          <div className="flex flex-col items-center gap-3 mb-8">
+            <div className="h-20 w-20 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur">
               {config.logoUrl ? (
-                <img src={config.logoUrl} alt="Logo" className="h-8 w-8 object-contain rounded-xl" />
+                <img src={config.logoUrl} alt="Logo officiel" className="h-20 w-20 object-contain rounded-2xl" />
               ) : (
-                <Church className="h-6 w-6 text-white"/>
+                <Church className="h-10 w-10 text-white"/>
               )}
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-tight">{config.nomOfficiel || "Église"}</h1>
-              <p className="text-xs text-white/70">Gestion communautaire & spirituelle</p>
+              <h1 className="font-bold text-xl leading-tight">{config.nomOfficiel || "Église"}</h1>
+              {config.mission && config.mission !== config.nomOfficiel && (
+                <p className="text-xs text-white/70 mt-1">{config.mission}</p>
+              )}
             </div>
           </div>
 
-          <div className="space-y-6 max-w-lg mt-12">
-            <h2 className="text-3xl font-extrabold tracking-tight">
-              Bienvenue sur votre espace
-            </h2>
-            <p className="text-white/80 leading-relaxed text-sm">
-              {!config.mission || config.mission === config.nomOfficiel
-                ? "La plateforme unifiée pour la gestion communautaire, le suivi pastoral, les finances et les événements de notre assemblée."
-                : config.mission}
-            </p>
-
-            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3 mt-6">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Informations clés de l'assemblée</h3>
-              <div className="text-sm space-y-1 text-white/90">
-                <p><span className="font-medium text-white">Siège :</span> {config.adresseSiege || "Non renseigné"}, {config.ville || ""}</p>
+          <div className="space-y-4 max-w-lg mt-8">
+            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Informations principales</h3>
+              <div className="text-sm space-y-1 text-white/90 text-left">
+                {config.adresseSiege || config.ville && (
+                  <p><span className="font-medium text-white">Siège :</span> {config.adresseSiege || ""}{config.ville ? `, ${config.ville}` : ""}</p>
+                )}
                 <p><span className="font-medium text-white">Contact :</span> {config.emailContact || "contact@eglise.org"}</p>
                 {config.telephones && config.telephones.length > 0 && (
                   <p><span className="font-medium text-white">Tél :</span> {config.telephones.join(", ")}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3 mt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Décrets et enregistrements officiels</h3>
+              <div className="text-sm space-y-1 text-white/90 text-left">
+                {config.numeroEnregistrement && (
+                  <p><span className="font-medium text-white">N° Enregistrement :</span> {config.numeroEnregistrement}</p>
+                )}
+                {config.numeroIfu && (
+                  <p><span className="font-medium text-white">N° IFU :</span> {config.numeroIfu}</p>
+                )}
+                {config.rib && (
+                  <p><span className="font-medium text-white">RIB :</span> {config.rib}</p>
+                )}
+                {config.pasteurPrincipal && (
+                  <p><span className="font-medium text-white">Pasteur principal :</span> {config.pasteurPrincipal}</p>
+                )}
+                {config.secretariat && (
+                  <p><span className="font-medium text-white">Secrétariat :</span> {config.secretariat}</p>
                 )}
               </div>
             </div>
