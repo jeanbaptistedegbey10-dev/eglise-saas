@@ -1,258 +1,101 @@
-import { Church, Quote } from "lucide-react";
+import React from "react";
+import { Church } from "lucide-react";
 import { lireConfiguration } from "@/lib/configuration-eglise";
 
-// ---------------------------------------------------------------------------
-// Mise en page « split-screen » des écrans d'authentification.
-// Colonne gauche : marque, accueil, punchline et cartes de fonctionnalités.
-// Colonne droite : fond clair, formulaire épuré.
-// ---------------------------------------------------------------------------
+interface EcranAuthProps {
+  children?: React.ReactNode;
+  titre?: string;
+  sousTitre?: string;
+  theme?: "sky-orange" | "violet";
+}
 
-type Props = {
-  /** Titre affiché au-dessus du formulaire (colonne droite). */
-  titre: string;
-  /** Court paragraphe sous le titre. */
-  sousTitre: string;
-  /** Formulaire ou contenu de la colonne droite. */
-  children: React.ReactNode;
-  /** Thème visuel de la colonne gauche : "violet" (défaut) ou "sky-orange". */
-  theme?: "violet" | "sky-orange";
-};
-
-
-export default async function EcranAuth({ 
-  titre, 
-  sousTitre, 
-  children, 
-  theme = "violet" 
-}: Props) {
-  const isSky = theme === "sky-orange";
+export default async function EcranAuth({
+  children,
+  titre = "Connexion",
+  sousTitre = "Accédez à votre espace de gestion sécurisé.",
+  theme = "sky-orange",
+}: EcranAuthProps) {
   const config = await lireConfiguration();
+  const isSky = theme === "sky-orange";
 
   return (
-    <div className="grid min-h-screen w-full lg:grid-cols-2">
-      {/* Colonne gauche */}
-      <aside className={`
-        relative overflow-hidden px-8 py-12 text-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:text-center xl:px-12
-        ${isSky
-          ? "bg-gradient-to-br from-sky-500 via-sky-600 to-sky-700"
-          : "hidden bg-gradient-to-br from-[#0b1233] via-[#151f56] to-[#1e1b4b] lg:flex lg:justify-between xl:px-16"
-      }`}>
-        {isSky ? (
-          <>
-            {/* Marque */}
-            <div className="relative flex items-center justify-center gap-3 mb-10">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 shadow-lg shadow-orange-500/30">
-                <Church className="h-6 w-6 text-white" aria-hidden />
-              </span>
-              <span className="text-left">
-                <span className="block text-xl font-bold tracking-tight text-white">
-                  Église SaaS
-                </span>
-                <span className="block text-sm text-sky-100/90">
-                  Gestion communautaire &amp; financière
-                </span>
-              </span>
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
+      {/* Partie Gauche : Presentation de l'Entite */}
+      <div
+        className={`hidden lg:flex flex-col justify-between p-12 text-white ${
+          isSky
+            ? "bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900"
+            : "bg-gradient-to-br from-violet-900 via-indigo-900 to-slate-950"
+        }`}
+      >
+        <div>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur">
+              {config.logoUrl ? (
+                <img src={config.logoUrl} alt="Logo" className="h-8 w-8 object-contain rounded-xl" />
+              ) : (
+                <Church className="h-6 w-6 text-white"/>
+              )}
             </div>
+            <div>
+              <h1 className="font-bold text-lg leading-tight">{config.nomOfficiel || "Église"}</h1>
+              <p className="text-xs text-white/70">Gestion communautaire & spirituelle</p>
+            </div>
+          </div>
 
-            {/* Accueil + punchline centrée */}
-            <div className="relative max-w-lg">
-              <h1 className="text-3xl font-bold leading-tight tracking-tight xl:text-4xl mb-6">
-                Bienvenue sur Église SaaS
-              </h1>
-              <p className="text-lg leading-relaxed text-sky-100 mb-10 xl:text-xl">
-                La plateforme qui simplifie la gestion de votre communauté
-                chrétienne au Togo. Dons, cotisations, membres et secrétariat
-                en un seul endroit.
-              </p>
+          <div className="space-y-6 max-w-lg mt-12">
+            <h2 className="text-3xl font-extrabold tracking-tight">
+              Bienvenue sur votre espace
+            </h2>
+            <p className="text-white/80 leading-relaxed text-sm">
+              {config.mission || "La plateforme unifiée pour simplifier la gestion de votre communauté, le suivi pastoral, les finances et le secrétariat en toute sérénité."}
+            </p>
 
-              {/* Informations de l'église */}
-              <div className="mt-8 w-full max-w-md space-y-3 text-center">
-                {config.logoUrl ? (
-                  <img
-                    src={config.logoUrl}
-                    alt={config.nomOfficiel}
-                    className="mx-auto h-16 w-16 rounded-full object-cover bg-white/20"
-                  />
-                ) : (
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
-                    <Church className="h-8 w-8 text-white" aria-hidden />
-                  </div>
+            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 backdrop-blur-sm space-y-3 mt-6">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Informations clés de l'assemblée</h3>
+              <div className="text-sm space-y-1 text-white/90">
+                <p><span className="font-medium text-white">Siège :</span> {config.adresseSiege || "Non renseigné"}, {config.ville || ""}</p>
+                <p><span className="font-medium text-white">Contact :</span> {config.emailContact || "contact@eglise.org"}</p>
+                {config.telephones && config.telephones.length > 0 && (
+                  <p><span className="font-medium text-white">Tél :</span> {config.telephones.join(", ")}</p>
                 )}
-                <h2 className="text-2xl font-bold text-white">
-                  {config.nomOfficiel || "Église"}
-                </h2>
-                {config.mission && (
-                  <p className="mt-2 text-lg text-white/90 max-w-md leading-relaxed">
-                    {config.mission}
-                  </p>
-                )}
-                <div className="mt-6 w-full space-y-2 text-sm text-white/90">
-                  {config.adresseSiege && (
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-white/70">Adresse :</span>
-                      <span>{config.adresseSiege}</span>
-                    </div>
-                  )}
-                  {config.ville && (
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-white/70">Ville :</span>
-                      <span>{config.ville}</span>
-                    </div>
-                  )}
-                  {config.emailContact && (
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-white/70">Contact :</span>
-                      <span>{config.emailContact}</span>
-                    </div>
-                  )}
-                  {config.telephones?.length && (
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-white/70">Tél :</span>
-                      <span>{config.telephones.join(", ")}</span>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
-          </>
-        ) : (
-          <>
-            {/* Halos décoratifs */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-violet-500/20 blur-3xl"
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -bottom-40 -right-24 h-[26rem] w-[26rem] rounded-full bg-indigo-500/20 blur-3xl"
-            />
-
-        {/* Marque */}
-        <div className="relative flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
-            <Church className="h-6 w-6 text-violet-200" aria-hidden />
-          </span>
-          <span>
-            <span className="block text-base font-semibold tracking-tight">
-              Église SaaS
-            </span>
-            <span className="block text-xs text-white/60">
-              Gestion communautaire &amp; financière
-            </span>
-          </span>
+          </div>
         </div>
 
-        {/* Accueil + punchline */}
-        <div className="relative max-w-md">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
-            Bienvenue sur Église SaaS
-          </h1>
-          <p className="mt-4 text-base leading-relaxed text-white/70 xl:text-lg">
-            La plateforme qui simplifie la gestion de votre communauté
-            chrétienne.
+        <div className="pt-6 border-t border-white/10 text-xs text-white/60 flex items-center justify-between">
+          <span>&copy; {new Date().getFullYear()} &mdash; Solution de gestion église</span>
+          <span>Sécurisé & Conforme</span>
+        </div>
+      </div>
+
+      {/* Partie Droite : Formulaire dynamique (children ou titre/sous-titre) */}
+      <div className="flex flex-col justify-center items-center p-8 sm:p-12 lg:p-16 bg-card text-card-foreground">
+        <div className="w-full max-w-md space-y-8">
+          <div className="lg:hidden flex items-center gap-3 mb-6">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Church className="h-5 w-5 text-primary"/>
+            </div>
+            <div>
+              <h1 className="font-bold text-base">{config.nomOfficiel || "Église"}</h1>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold tracking-tight">{titre}</h2>
+            {sousTitre && (
+              <p className="text-sm text-muted-foreground">{sousTitre}</p>
+            )}
+          </div>
+
+          {children}
+
+          <p className="text-center text-xs text-muted-foreground pt-4">
+            &copy; {new Date().getFullYear()} &mdash; Gestion de communauté
           </p>
-          {/* Informations de l'église */}
-          <div className="mt-8 w-full max-w-md space-y-3 text-left text-white/90">
-            {config.logoUrl ? (
-              <img
-                src={config.logoUrl}
-                alt={config.nomOfficiel}
-                className="h-12 w-12 rounded-full object-cover bg-white/20 shrink-0"
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 shrink-0">
-                <Church className="h-6 w-6 text-white" aria-hidden />
-              </div>
-            )}
-            <h2 className="text-xl font-bold text-white">
-              {config.nomOfficiel || "Église"}
-            </h2>
-            {config.mission && (
-              <p className="mt-2 text-base text-white/90 leading-relaxed">
-                {config.mission}
-              </p>
-            )}
-            <div className="mt-4 w-full space-y-2 text-sm">
-              {config.adresseSiege && (
-                <div className="flex items-start gap-2">
-                  <span className="shrink-0 text-white/70">Adresse :</span>
-                  <span>{config.adresseSiege}</span>
-                </div>
-              )}
-              {config.ville && (
-                <div className="flex items-start gap-2">
-                  <span className="shrink-0 text-white/70">Ville :</span>
-                  <span>{config.ville}</span>
-                </div>
-              )}
-              {config.emailContact && (
-                <div className="flex items-start gap-2">
-                  <span className="shrink-0 text-white/70">Contact :</span>
-                  <span>{config.emailContact}</span>
-                </div>
-              )}
-              {config.telephones?.length && (
-                <div className="flex items-start gap-2">
-                  <span className="shrink-0 text-white/70">Tél :</span>
-                  <span>{config.telephones.join(", ")}</span>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
-
-        {/* Carte de témoignage / assurance */}
-        <figure className="relative max-w-md rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-          <Quote className="h-5 w-5 text-violet-300" aria-hidden />
-          <blockquote className="mt-3 text-sm leading-relaxed text-white/85">
-            « Depuis que nous utilisons Église SaaS, la saisie des cotisations
-            et le suivi des membres sont enfin simples. Notre trésorerie est
-            claire, et le secrétariat gagne un temps précieux chaque semaine. »
-          </blockquote>
-          <figcaption className="mt-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-400/20 text-xs font-semibold text-violet-100 ring-1 ring-white/15">
-              SM
-            </span>
-            <span>
-              <span className="block text-sm font-medium text-white">
-                Pasteur Samuel M.
-              </span>
-              <span className="block text-xs text-white/60">
-                Église Bethel — communauté de 450 membres
-              </span>
-            </span>
-          </figcaption>
-        </figure>
-          </>
-        )}
-      </aside>
-
-      {/* Colonne droite — fond clair, formulaire épuré */}
-      <main className={`flex flex-col ${isSky ? "bg-slate-50" : "bg-background"} px-6 py-10 sm:px-10 lg:px-14 xl:px-20`}>
-        {/* Bandeau de marque visible sur mobile (colonne gauche masquée) */}
-        <div className={`mb-8 flex items-center gap-3 lg:hidden`}>
-          <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${isSky ? "bg-orange-500/10 ring-1 ring-orange-500/20" : "bg-primary/10 ring-1 ring-primary/20"}`}>
-            <Church className={`h-5 w-5 ${isSky ? "text-orange-600" : "text-primary"}`} aria-hidden />
-          </span>
-          <span className={`text-base font-semibold ${isSky ? "text-orange-700" : "text-foreground"}`}>
-            Église SaaS
-          </span>
-        </div>
-
-        <div className="flex flex-1 items-center">
-          <div className="mx-auto w-full max-w-md">
-            <h2 className={`text-2xl font-semibold tracking-tight ${isSky ? "text-orange-800" : "text-foreground"}`}>
-              {titre}
-            </h2>
-            <p className={`mt-1.5 text-sm ${isSky ? "text-slate-600" : "text-muted-foreground"}`}>{sousTitre}</p>
-            <div className="mt-8">{children}</div>
-          </div>
-        </div>
-
-        <p className={`mt-10 text-center text-xs ${isSky ? "text-slate-500" : "text-muted-foreground"}`}>
-          © {new Date().getFullYear()} Église SaaS — Gestion de communauté
-        </p>
-      </main>
+      </div>
     </div>
   );
 }
