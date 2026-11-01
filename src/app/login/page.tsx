@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { lireConfiguration } from "@/lib/configuration-eglise";
 import FormulaireConnexion from "@/components/auth/FormulaireConnexion";
 import EcranAuth from "@/components/auth/EcranAuth";
 
@@ -14,9 +15,11 @@ type Props = {
 
 export default async function PageConnexion({ searchParams }: Props) {
   const params = await searchParams;
+  const configuration = await lireConfiguration();
 
   return (
     <EcranAuth
+      configuration={configuration}
       titre="Connexion"
       sousTitre="Accédez à votre espace de gestion."
       theme="sky-orange"

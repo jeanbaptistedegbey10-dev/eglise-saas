@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { lireConfiguration } from "@/lib/configuration-eglise";
 import EcranAuth from "@/components/auth/EcranAuth";
 import FormulaireNouveauMotDePasse from "@/components/auth/FormulaireNouveauMotDePasse";
 
@@ -15,9 +16,11 @@ type Props = {
 
 export default async function PageReinitialisation({ searchParams }: Props) {
   const { jeton } = await searchParams;
+  const configuration = await lireConfiguration();
 
   return (
     <EcranAuth
+      configuration={configuration}
       titre="Nouveau mot de passe"
       sousTitre="Choisissez un mot de passe sécurisé pour votre compte."
     >

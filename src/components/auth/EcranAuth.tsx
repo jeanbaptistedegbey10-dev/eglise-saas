@@ -1,111 +1,84 @@
-import React from "react";
-import { Church, MapPin, Mail, Phone, FileText, ShieldCheck, CreditCard, UserCheck, Users } from "lucide-react";
-import { lireConfiguration } from "@/lib/configuration-eglise";
+"use client";
+
+import React, { useState } from "react";
+import { Church } from "lucide-react";
+import { ConfigurationEglise } from "@/lib/configuration-eglise";
 
 interface EcranAuthProps {
   children?: React.ReactNode;
+  configuration?: ConfigurationEglise;
   titre?: string;
   sousTitre?: string;
   theme?: "sky-orange" | "violet";
 }
 
-export default async function EcranAuth({
+const VIDEO_SOURCES = [
+  { src: "/background.mp4", type: "video/mp4" },
+  {
+    src: "https://cdn.pixabay.com/video/2023/06/16/131836-851342664_small.mp4",
+    type: "video/mp4",
+  },
+] as const;
+
+export default function EcranAuth({
   children,
+  configuration,
   titre = "Connexion",
   sousTitre = "Accédez à votre espace de gestion sécurisé.",
   theme = "sky-orange",
 }: EcranAuthProps) {
-  const config = await lireConfiguration();
+  const [videoError, setVideoError] = useState(false);
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
-      {/* Partie Gauche : Presentation de l'Entite */}
-      <div
-        className="hidden lg:flex flex-col items-center justify-center text-white text-center p-8 lg:p-12 bg-gradient-to-br from-teal-900 via-slate-900 to-slate-950"
-      >
-        <div>
-          <div className="flex flex-col items-center gap-3 mb-8">
-            <div className="h-24 w-24 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur mx-auto mb-4">
-              {config.logoUrl ? (
-                <img src={config.logoUrl} alt="Logo officiel" className="h-24 w-24 object-contain rounded-2xl mx-auto" />
-              ) : (
-                <Church className="h-12 w-12 text-white mx-auto"/>
-              )}
-            </div>
-            <div>
-              <h1 className="font-bold text-xl leading-tight">{config.nomOfficiel || "Église"}</h1>
-              {config.mission && config.mission !== config.nomOfficiel && (
-                <p className="text-xs text-white/70 mt-1">{config.mission}</p>
-              )}
-            </div>
-          </div>
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden p-4">
+      {/* Vidéo en arrière-plan */}
+      {!videoError && (
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="absolute inset-0 w-full h-full object-cover -z-10"
+          onError={() => setVideoError(true)}
+        >
+          {VIDEO_SOURCES.map((source, index) => (
+            <source key={index} src={source.src} type={source.type} />
+          ))}
+          Votre navigateur ne supporte pas la lecture vidéo.
+        </video>
+      )}
+      {videoError && (
+        <div
+          className="absolute inset-0 w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-black -z-10"
+        />
+      )}
+      {/* Overlay sombre pour le contraste */}
+      <div className="absolute inset-0 bg-black/50 -z-10"></div>
 
-          <div className="space-y-4 max-w-lg mt-8">
-            <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-6 space-y-3 w-full max-w-md mx-auto">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70 text-center">Informations principales</h3>
-              <div className="text-sm space-y-2 text-left">
-                {config.adresseSiege || config.ville && (
-                  <p className="flex items-center gap-2 text-white/90"><MapPin className="w-4 h-4" /><span className="font-medium text-white">Siège :</span> {config.adresseSiege || ""}{config.ville ? `, ${config.ville}` : ""}</p>
-                )}
-                <p className="flex items-center gap-2 text-white/90"><Mail className="w-4 h-4" /><span className="font-medium text-white">Contact :</span> {config.emailContact || "contact@eglise.org"}</p>
-                {config.telephones && config.telephones.length > 0 && (
-                  <p className="flex items-center gap-2 text-white/90"><Phone className="w-4 h-4" /><span className="font-medium text-white">Tél :</span> {config.telephones.join(", ")}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-6 space-y-3 w-full max-w-md mx-auto mt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70 text-center">Décrets et enregistrements officiels</h3>
-              <div className="text-sm space-y-2 text-left">
-                {config.numeroEnregistrement && (
-                  <p className="flex items-center gap-2 text-white/90"><FileText className="w-4 h-4" /><span className="font-medium text-white">N° Enregistrement :</span> {config.numeroEnregistrement}</p>
-                )}
-                {config.numeroIfu && (
-                  <p className="flex items-center gap-2 text-white/90"><ShieldCheck className="w-4 h-4" /><span className="font-medium text-white">N° IFU :</span> {config.numeroIfu}</p>
-                )}
-                {config.rib && (
-                  <p className="flex items-center gap-2 text-white/90"><CreditCard className="w-4 h-4" /><span className="font-medium text-white">RIB :</span> {config.rib}</p>
-                )}
-                {config.pasteurPrincipal && (
-                  <p className="flex items-center gap-2 text-white/90"><UserCheck className="w-4 h-4" /><span className="font-medium text-white">Pasteur principal :</span> {config.pasteurPrincipal}</p>
-                )}
-                {config.secretariat && (
-                  <p className="flex items-center gap-2 text-white/90"><Users className="w-4 h-4" /><span className="font-medium text-white">Secrétariat :</span> {config.secretariat}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-6 border-t border-white/10 text-xs text-white/60 flex items-center justify-center text-center w-full">
-          <span>&copy; {new Date().getFullYear()} &mdash; Solution de gestion église</span>
-          <span>Sécurisé & Conforme</span>
-        </div>
-      </div>
-
-      {/* Partie Droite : Formulaire dynamique (children ou titre/sous-titre) */}
-      <div className="flex flex-col justify-center items-center p-8 sm:p-12 lg:p-16 bg-card text-card-foreground">
+      {/* Partie unique : Formulaire centré */}
+      <div className="w-full max-w-md p-8 sm:p-10 bg-white/10 dark:bg-black/40 backdrop-blur-md border border-white/20 shadow-2xl rounded-3xl">
         <div className="w-full max-w-md space-y-8">
           <div className="lg:hidden flex items-center gap-3 mb-6">
             <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Church className="h-5 w-5 text-primary"/>
             </div>
             <div>
-              <h1 className="font-bold text-base">{config.nomOfficiel || "Église"}</h1>
+              <h1 className="font-bold text-base text-white">{configuration?.nomOfficiel || "Église"}</h1>
             </div>
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold tracking-tight">{titre}</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-white">{titre}</h2>
             {sousTitre && (
-              <p className="text-sm text-muted-foreground">{sousTitre}</p>
+              <p className="text-sm text-white/80">{sousTitre}</p>
             )}
           </div>
 
           {children}
 
-          <p className="text-center text-xs text-muted-foreground pt-4">
-            &copy; {new Date().getFullYear()} &mdash; Gestion de communauté
+          <p className="text-center text-xs text-white/80 pt-4">
+            &copy; 2026 Digital Infotech
           </p>
         </div>
       </div>

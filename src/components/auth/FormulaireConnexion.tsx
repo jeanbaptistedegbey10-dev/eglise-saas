@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleAlert, LoaderCircle, LogIn } from "lucide-react";
+import { CircleAlert, Eye, EyeOff, LoaderCircle, LogIn } from "lucide-react";
 
 import { connecter } from "@/actions/connexion";
 import { initialAuthFormState } from "@/types/auth";
@@ -42,6 +42,7 @@ export default function FormulaireConnexion({
   const err = (champ: string) => etat.fieldErrors[champ]?.[0];
 
   const isOrange = variant === "orange";
+  const [motDePasseVisible, setMotDePasseVisible] = useState(false);
 
   const INPUT_CLS = isOrange
     ? "flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/50"
@@ -49,11 +50,9 @@ export default function FormulaireConnexion({
 
   const BUTTON_CLS = isOrange
     ? "mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white shadow-md hover:bg-orange-600 disabled:opacity-60"
-    : "mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60";
+    : "mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60";
 
-  const LINK_CLS = isOrange
-    ? "text-sm font-medium text-orange-600 hover:underline"
-    : "text-sm font-medium text-primary hover:underline";
+  const LINK_CLS = "text-sm font-medium text-white hover:underline";
 
   const CHECKBOX_CLS = isOrange ? "h-4 w-4 accent-orange-600" : "h-4 w-4 accent-violet-600";
 
@@ -91,7 +90,7 @@ export default function FormulaireConnexion({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="connexion-email"
-          className={`text-sm font-medium ${isOrange ? "text-slate-800" : "text-foreground"}`}
+          className="text-sm font-medium text-white"
         >
           Adresse e-mail
         </label>
@@ -110,26 +109,39 @@ export default function FormulaireConnexion({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="connexion-mdp"
-          className={`text-sm font-medium ${isOrange ? "text-slate-800" : "text-foreground"}`}
+          className="text-sm font-medium text-white"
         >
           Mot de passe
         </label>
-        <input
-          id="connexion-mdp"
-          name="motDePasse"
-          type="password"
-          required
-          autoComplete="current-password"
-          placeholder="••••••••"
-          className={INPUT_CLS}
-        />
+        <div className="relative">
+          <input
+            id="connexion-mdp"
+            name="motDePasse"
+            type={motDePasseVisible ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            className={`${INPUT_CLS} pr-10`}
+          />
+          <button
+            type="button"
+            onClick={() => setMotDePasseVisible(!motDePasseVisible)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+          >
+            {motDePasseVisible ? (
+              <EyeOff className="h-5 w-5 text-gray-400 hover:text-white transition-colors" aria-hidden />
+            ) : (
+              <Eye className="h-5 w-5 text-gray-400 hover:text-white transition-colors" aria-hidden />
+            )}
+          </button>
+        </div>
         {err("motDePasse") && (
           <p className="text-xs text-red-400">{err("motDePasse")}</p>
         )}
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-white/80">
           <input
             type="checkbox"
             name="seSouvenir"
@@ -159,15 +171,7 @@ export default function FormulaireConnexion({
         Se connecter
       </button>
 
-      <p className={`mt-2 text-center text-sm ${isOrange ? "text-slate-500" : "text-muted-foreground"}`}>
-        Pas encore de compte ?{" "}
-        <Link
-          href="/register"
-          className={isOrange ? "font-medium text-orange-600 hover:underline" : "font-medium text-primary hover:underline"}
-        >
-          Créer un compte
-        </Link>
-      </p>
+
     </form>
   );
 }

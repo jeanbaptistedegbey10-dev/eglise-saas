@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { lireConfiguration } from "@/lib/configuration-eglise";
 import FormulaireVerificationCode from "@/components/auth/FormulaireVerificationCode";
 import EcranAuth from "@/components/auth/EcranAuth";
 
@@ -24,9 +25,11 @@ export default async function PageVerifierCode({ searchParams }: Props) {
     params.redirectTo && params.redirectTo.startsWith("/") && !params.redirectTo.startsWith("//")
       ? params.redirectTo
       : "/dashboard";
+  const configuration = await lireConfiguration();
 
   return (
     <EcranAuth
+      configuration={configuration}
       titre="Vérifiez votre identité"
       sousTitre="Un code à 6 chiffres vient d'être envoyé à votre adresse e-mail (valable 10 minutes)."
     >

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { lireConfiguration } from "@/lib/configuration-eglise";
 import EcranAuth from "@/components/auth/EcranAuth";
 import FormulaireMotDePasseOublie from "@/components/auth/FormulaireMotDePasseOublie";
 
@@ -8,9 +9,12 @@ export const metadata: Metadata = {
   description: "Recevez un lien pour réinitialiser votre mot de passe.",
 };
 
-export default function PageMotDePasseOublie() {
+export default async function PageMotDePasseOublie() {
+  const configuration = await lireConfiguration();
+
   return (
     <EcranAuth
+      configuration={configuration}
       titre="Mot de passe oublié"
       sousTitre="Indiquez votre e-mail : nous vous enverrons un lien de réinitialisation."
     >
